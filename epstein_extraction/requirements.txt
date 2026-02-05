@@ -1,0 +1,47 @@
+# Core dependencies
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0
+python-dotenv>=1.0.0
+
+# PDF extraction
+PyPDF2>=3.0.0
+pdfplumber>=0.10.0
+PyMuPDF>=1.23.0  # fitz
+
+# OCR
+pytesseract>=0.3.10
+Pillow>=10.0.0
+
+# Image processing
+pillow>=10.0.0
+piexif>=1.1.3
+
+# NLP & NER
+spacy>=3.7.0
+# Download model: python -m spacy download en_core_web_trf
+
+# Date parsing
+python-dateutil>=2.8.0
+dateparser>=1.2.0
+
+# Progress tracking
+tqdm>=4.66.0
+
+# Utilities
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+
+# AI Image Analysis (optional - uncomment as needed)
+# boto3>=1.29.0  # AWS Rekognition
+# azure-cognitiveservices-vision-computervision>=0.9.0  # Azure Computer Vision
+# google-cloud-vision>=3.4.0  # Google Cloud Vision
+
+# Face recognition (optional)
+# face-recognition>=1.3.0
+# dlib>=19.24.0
+
+# Data validation
+pydantic>=2.0.0
+
+# Logging
+loguru>=0.7.0

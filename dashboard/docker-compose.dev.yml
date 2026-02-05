@@ -1,0 +1,7 @@
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    ports:
+      - "5000:5000"

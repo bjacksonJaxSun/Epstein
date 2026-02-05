@@ -1,0 +1,126 @@
+================================================================================
+   DATASET 9 EPSTEIN FILES DOWNLOADER - HOW TO USE
+================================================================================
+
+STEP 1: INSTALL .NET 9.0 SDK (if not already installed)
+--------------------------------------------------------
+Visit: https://dotnet.microsoft.com/download/dotnet/9.0
+Download and install the SDK
+
+To check if installed:
+  > dotnet --version
+  (Should show 9.0.x or higher)
+
+
+STEP 2: RUN THE APPLICATION
+--------------------------------------------------------
+Double-click this file:
+  BUILD_AND_RUN.bat
+
+OR open Command Prompt and run:
+  > cd C:\Development\JaxSun.Ideas\tools\EpsteinDownloader
+  > dotnet run
+
+
+STEP 3: CLICK "START DOWNLOAD"
+--------------------------------------------------------
+The application window will appear with:
+  - Status label showing current operation
+  - Progress bar showing percentage complete
+  - Text box showing detailed logs
+  - Start Download button
+  - Stop button
+
+Click the "Start Download" button.
+
+
+WHAT WILL HAPPEN:
+--------------------------------------------------------
+1. Application downloads URL list from Archive.org (2-3 minutes)
+   - 79 MB file containing 1.2M+ URLs
+
+2. A small browser window appears for age verification
+   - Automatically clicks "I am not a robot" button
+   - Automatically clicks "Yes" (18+) button
+   - Browser hides once complete
+
+3. Download begins - you'll see in the log:
+   [10:33:01] [1/1223757] [OK] EFTA00039025.pdf (11,618,125 bytes)
+   [10:33:02] [2/1223757] [404] EFTA00039026.pdf
+   [10:33:03] [3/1223757] [OK] EFTA00039027.pdf
+   ... and so on for 1.2 million files
+
+4. Progress updates show:
+   - Files downloaded successfully
+   - Files that don't exist (404)
+   - Download rate (files/second)
+   - ETA (estimated time remaining)
+
+
+TO STOP:
+--------------------------------------------------------
+Click the "Stop" button
+OR close the window
+OR press Alt+F4
+
+Progress is saved automatically every 100 files.
+
+
+TO RESUME:
+--------------------------------------------------------
+Just run the application again and click "Start Download"
+
+The application will:
+  - Skip all files you already downloaded
+  - Resume from where it stopped
+  - Continue with remaining files
+
+
+WHERE ARE FILES SAVED:
+--------------------------------------------------------
+C:\Development\JaxSun.Ideas\tools\EpsteinDownloader\epstein_files\DataSet_9\
+
+Inside you'll find:
+  - EFTA*.pdf files (the downloaded PDFs)
+  - archive_org_url_list.txt (the URL list)
+  - download_progress.json (resume state)
+
+
+HOW LONG WILL IT TAKE:
+--------------------------------------------------------
+  Total files:     1,224,009 PDFs
+  Download rate:   ~3 files/second
+  Estimated time:  4-5 DAYS continuous
+  Estimated size:  100-500 GB
+
+
+REQUIREMENTS:
+--------------------------------------------------------
+  Windows:     10 or 11
+  .NET:        9.0 SDK
+  Disk space:  500 GB free minimum
+  Internet:    Stable connection
+
+
+TROUBLESHOOTING:
+--------------------------------------------------------
+Problem: ".NET SDK not found"
+Solution: Install from https://dotnet.microsoft.com/download/dotnet/9.0
+
+Problem: "WebView2 Runtime not found"
+Solution: Install from https://developer.microsoft.com/microsoft-edge/webview2/
+
+Problem: Age verification buttons don't auto-click
+Solution: Browser will stay visible - click them manually
+
+Problem: Application crashes
+Solution: Just run it again - progress is saved every 100 files
+
+
+THAT'S IT!
+--------------------------------------------------------
+Just run BUILD_AND_RUN.bat and click "Start Download"
+
+The application will handle everything else automatically!
+
+================================================================================

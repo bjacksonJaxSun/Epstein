@@ -1,0 +1,854 @@
+================================================================================
+Dataset 9 - Real Filename Scraper
+================================================================================
+
+This will scrape the ACTUAL filenames from Justice.gov
+instead of using the incorrect Archive.org generated list.
+
+Opening browser...
+Navigating to Dataset 9 page...
+
+Looking for age verification buttons...
+Clicking 'I am not a robot' button...
+Clicking age verification button...
+
+================================================================================
+Scraping Dataset 9 - Page 0...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=0
+Found 50 files on page 0
+  First: EFTA00039025.pdf
+  Last: EFTA00039882.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 1...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=1
+Found 50 files on page 1
+  First: EFTA00039883.pdf
+  Last: EFTA00040150.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 2...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=2
+Found 50 files on page 2
+  First: EFTA00040151.pdf
+  Last: EFTA00040399.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 3...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=3
+Found 50 files on page 3
+  First: EFTA00040400.pdf
+  Last: EFTA00040588.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 4...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=4
+Found 50 files on page 4
+  First: EFTA00040589.pdf
+  Last: EFTA00040833.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 5...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=5
+Found 50 files on page 5
+  First: EFTA00040844.pdf
+  Last: EFTA00058500.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 6...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=6
+Found 50 files on page 6
+  First: EFTA00058501.pdf
+  Last: EFTA00059403.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 7...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=7
+Found 50 files on page 7
+  First: EFTA00059405.pdf
+  Last: EFTA00059939.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 8...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=8
+Found 50 files on page 8
+  First: EFTA00059940.pdf
+  Last: EFTA00060773.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 9...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=9
+Found 50 files on page 9
+  First: EFTA00060774.pdf
+  Last: EFTA00061385.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 10...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=10
+Found 50 files on page 10
+  First: EFTA00061389.pdf
+  Last: EFTA00061697.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 11...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=11
+Found 50 files on page 11
+  First: EFTA00061698.pdf
+  Last: EFTA00063383.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 12...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=12
+Found 50 files on page 12
+  First: EFTA00063385.pdf
+  Last: EFTA00064427.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 13...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=13
+Found 33 files on page 13
+  First: EFTA00064519.pdf
+  Last: EFTA00064613.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 14...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=14
+Found 50 files on page 14
+  First: EFTA00064614.pdf
+  Last: EFTA00065522.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 15...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=15
+Found 50 files on page 15
+  First: EFTA00065526.pdf
+  Last: EFTA00065800.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 16...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=16
+Found 50 files on page 16
+  First: EFTA00065803.pdf
+  Last: EFTA00066158.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 17...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=17
+Found 50 files on page 17
+  First: EFTA00066159.pdf
+  Last: EFTA00066567.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 18...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=18
+Found 50 files on page 18
+  First: EFTA00066569.pdf
+  Last: EFTA00067119.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 19...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=19
+Found 50 files on page 19
+  First: EFTA00067120.pdf
+  Last: EFTA00067375.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 20...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=20
+Found 50 files on page 20
+  First: EFTA00067376.pdf
+  Last: EFTA00067520.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 21...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=21
+Found 50 files on page 21
+  First: EFTA00067524.pdf
+  Last: EFTA00068042.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 22...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=22
+Found 50 files on page 22
+  First: EFTA00068047.pdf
+  Last: EFTA00068272.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 23...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=23
+Found 49 files on page 23
+  First: EFTA00068273.pdf
+  Last: EFTA00068400.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 24...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=24
+Found 50 files on page 24
+  First: EFTA00068402.pdf
+  Last: EFTA00068568.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 25...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=25
+Found 50 files on page 25
+  First: EFTA00068569.pdf
+  Last: EFTA00068981.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 26...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=26
+Found 50 files on page 26
+  First: EFTA00068985.pdf
+  Last: EFTA00070201.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 27...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=27
+Found 50 files on page 27
+  First: EFTA00070202.pdf
+  Last: EFTA00071674.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 28...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=28
+Found 50 files on page 28
+  First: EFTA00071702.pdf
+  Last: EFTA00072287.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 29...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=29
+Found 42 files on page 29
+  First: EFTA00072357.pdf
+  Last: EFTA00072519.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 30...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=30
+Found 50 files on page 30
+  First: EFTA00072521.pdf
+  Last: EFTA00072655.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 31...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=31
+Found 50 files on page 31
+  First: EFTA00072660.pdf
+  Last: EFTA00073117.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 32...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=32
+Found 50 files on page 32
+  First: EFTA00073158.pdf
+  Last: EFTA00073488.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 33...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=33
+Found 50 files on page 33
+  First: EFTA00073491.pdf
+  Last: EFTA00073799.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 34...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=34
+Found 50 files on page 34
+  First: EFTA00073801.pdf
+  Last: EFTA00074151.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 35...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=35
+Found 50 files on page 35
+  First: EFTA00074159.pdf
+  Last: EFTA00074391.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 36...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=36
+Found 50 files on page 36
+  First: EFTA00074398.pdf
+  Last: EFTA00074719.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 37...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=37
+Found 50 files on page 37
+  First: EFTA00074723.pdf
+  Last: EFTA00075332.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 38...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=38
+Found 50 files on page 38
+  First: EFTA00075335.pdf
+  Last: EFTA00075749.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 39...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=39
+Found 50 files on page 39
+  First: EFTA00075778.pdf
+  Last: EFTA00075867.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 40...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=40
+Found 50 files on page 40
+  First: EFTA00075870.pdf
+  Last: EFTA00076059.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 41...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=41
+Found 50 files on page 41
+  First: EFTA00076060.pdf
+  Last: EFTA00076359.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 42...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=42
+Found 49 files on page 42
+  First: EFTA00076373.pdf
+  Last: EFTA00077060.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 43...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=43
+Found 50 files on page 43
+  First: EFTA00077062.pdf
+  Last: EFTA00077278.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 44...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=44
+Found 50 files on page 44
+  First: EFTA00077281.pdf
+  Last: EFTA00077408.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 45...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=45
+Found 50 files on page 45
+  First: EFTA00077409.pdf
+  Last: EFTA00077998.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 46...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=46
+Found 50 files on page 46
+  First: EFTA00078002.pdf
+  Last: EFTA00078207.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 47...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=47
+Found 50 files on page 47
+  First: EFTA00078209.pdf
+  Last: EFTA00078447.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 48...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=48
+Found 50 files on page 48
+  First: EFTA00078448.pdf
+  Last: EFTA00078666.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 49...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=49
+Found 50 files on page 49
+  First: EFTA00078667.pdf
+  Last: EFTA00078956.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 50...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=50
+Found 50 files on page 50
+  First: EFTA00078958.pdf
+  Last: EFTA00079180.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 51...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=51
+Found 50 files on page 51
+  First: EFTA00079183.pdf
+  Last: EFTA00079395.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 52...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=52
+Found 50 files on page 52
+  First: EFTA00079398.pdf
+  Last: EFTA00079636.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 53...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=53
+Found 50 files on page 53
+  First: EFTA00079640.pdf
+  Last: EFTA00080006.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 54...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=54
+Found 50 files on page 54
+  First: EFTA00080010.pdf
+  Last: EFTA00080419.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 55...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=55
+Found 50 files on page 55
+  First: EFTA00080422.pdf
+  Last: EFTA00080611.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 56...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=56
+Found 50 files on page 56
+  First: EFTA00080612.pdf
+  Last: EFTA00080974.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 57...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=57
+Found 50 files on page 57
+  First: EFTA00080975.pdf
+  Last: EFTA00081425.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 58...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=58
+Found 50 files on page 58
+  First: EFTA00081426.pdf
+  Last: EFTA00081937.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 59...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=59
+Found 50 files on page 59
+  First: EFTA00081944.pdf
+  Last: EFTA00082106.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 60...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=60
+Found 50 files on page 60
+  First: EFTA00082110.pdf
+  Last: EFTA00082337.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 61...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=61
+Found 50 files on page 61
+  First: EFTA00082349.pdf
+  Last: EFTA00082653.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 62...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=62
+Found 50 files on page 62
+  First: EFTA00082654.pdf
+  Last: EFTA00083566.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 63...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=63
+Found 50 files on page 63
+  First: EFTA00083599.pdf
+  Last: EFTA00083824.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 64...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=64
+Found 49 files on page 64
+  First: EFTA00083826.pdf
+  Last: EFTA00083974.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 65...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=65
+Found 50 files on page 65
+  First: EFTA00083977.pdf
+  Last: EFTA00084202.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 66...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=66
+Found 50 files on page 66
+  First: EFTA00084207.pdf
+  Last: EFTA00084567.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 67...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=67
+Found 50 files on page 67
+  First: EFTA00084586.pdf
+  Last: EFTA00084910.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 68...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=68
+Found 50 files on page 68
+  First: EFTA00084916.pdf
+  Last: EFTA00085095.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 69...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=69
+Found 50 files on page 69
+  First: EFTA00085096.pdf
+  Last: EFTA00085767.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 70...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=70
+Found 50 files on page 70
+  First: EFTA00085769.pdf
+  Last: EFTA00086291.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 71...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=71
+Found 50 files on page 71
+  First: EFTA00086350.pdf
+  Last: EFTA00086769.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 72...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=72
+Found 50 files on page 72
+  First: EFTA00086773.pdf
+  Last: EFTA00086968.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 73...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=73
+Found 50 files on page 73
+  First: EFTA00086970.pdf
+  Last: EFTA00087089.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 74...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=74
+Found 48 files on page 74
+  First: EFTA00087102.pdf
+  Last: EFTA00087369.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 75...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=75
+Found 50 files on page 75
+  First: EFTA00087372.pdf
+  Last: EFTA00087761.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 76...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=76
+Found 50 files on page 76
+  First: EFTA00087769.pdf
+  Last: EFTA00088028.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 77...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=77
+Found 50 files on page 77
+  First: EFTA00039025.pdf
+  Last: EFTA00039882.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 78...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=78
+Found 50 files on page 78
+  First: EFTA00088605.pdf
+  Last: EFTA00088998.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 79...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=79
+Found 50 files on page 79
+  First: EFTA00089001.pdf
+  Last: EFTA00089224.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 80...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=80
+Found 49 files on page 80
+  First: EFTA00089225.pdf
+  Last: EFTA00089374.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 81...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=81
+Found 50 files on page 81
+  First: EFTA00089376.pdf
+  Last: EFTA00089669.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 82...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=82
+Found 50 files on page 82
+  First: EFTA00089670.pdf
+  Last: EFTA00089891.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 83...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=83
+Found 50 files on page 83
+  First: EFTA00089900.pdf
+  Last: EFTA00090282.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 84...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=84
+Found 49 files on page 84
+  First: EFTA00090283.pdf
+  Last: EFTA00090548.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 85...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=85
+Found 50 files on page 85
+  First: EFTA00090550.pdf
+  Last: EFTA00090717.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 86...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=86
+Found 50 files on page 86
+  First: EFTA00090718.pdf
+  Last: EFTA00091237.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 87...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=87
+Found 50 files on page 87
+  First: EFTA00091238.pdf
+  Last: EFTA00091413.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 88...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=88
+Found 50 files on page 88
+  First: EFTA00091414.pdf
+  Last: EFTA00091691.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 89...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=89
+Found 50 files on page 89
+  First: EFTA00091692.pdf
+  Last: EFTA00091955.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 90...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=90
+Found 50 files on page 90
+  First: EFTA00091957.pdf
+  Last: EFTA00092224.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 91...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=91
+Found 50 files on page 91
+  First: EFTA00092235.pdf
+  Last: EFTA00092500.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 92...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=92
+Found 50 files on page 92
+  First: EFTA00092502.pdf
+  Last: EFTA00092794.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 93...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=93
+Found 50 files on page 93
+  First: EFTA00092796.pdf
+  Last: EFTA00092961.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 94...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=94
+Found 50 files on page 94
+  First: EFTA00092963.pdf
+  Last: EFTA00093490.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 95...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=95
+Found 46 files on page 95
+  First: EFTA00093511.pdf
+  Last: EFTA00094155.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 96...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=96
+Found 50 files on page 96
+  First: EFTA00094133.pdf
+  Last: EFTA00094641.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 97...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=97
+Found 50 files on page 97
+  First: EFTA00094642.pdf
+  Last: EFTA00094874.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 98...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=98
+Found 50 files on page 98
+  First: EFTA00094875.pdf
+  Last: EFTA00095048.pdf
+
+================================================================================
+Scraping Dataset 9 - Page 99...
+================================================================================
+URL: https://www.justice.gov/epstein/doj-disclosures/data-set-9-files?page=99
+Found 50 files on page 99
+  First: EFTA00095050.pdf
+  Last: EFTA00095473.pdf
+
+================================================================================
+SCRAPING COMPLETE
+================================================================================
+
+Total files found: 4964
+Unique files: 4907
+
+Saved to: epstein_files/DataSet_9/actual_filenames.json
+Saved to: epstein_files/DataSet_9/actual_filenames.txt
+
+First 10 files:
+  1. EFTA00039025.pdf
+  2. EFTA00039153.pdf
+  3. EFTA00039156.pdf
+  4. EFTA00039190.pdf
+  5. EFTA00039208.pdf
+  6. EFTA00039220.pdf
+  7. EFTA00039227.pdf
+  8. EFTA00039282.pdf
+  9. EFTA00039295.pdf
+  10. EFTA00039312.pdf
+
+Last 10 files:
+  4898. EFTA00095379.pdf
+  4899. EFTA00095384.pdf
+  4900. EFTA00095385.pdf
+  4901. EFTA00095386.pdf
+  4902. EFTA00095387.pdf
+  4903. EFTA00095388.pdf
+  4904. EFTA00095462.pdf
+  4905. EFTA00095465.pdf
+  4906. EFTA00095467.pdf
+  4907. EFTA00095473.pdf
+
+Download URLs saved to: epstein_files/DataSet_9/actual_download_urls.txt
+
+================================================================================
+SUCCESS: Found 4907 actual files
+This is MUCH smaller than the 1.2M in the Archive.org list!
+================================================================================

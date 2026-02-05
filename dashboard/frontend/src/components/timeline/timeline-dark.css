@@ -1,0 +1,207 @@
+/* vis-timeline dark theme overrides */
+
+.vis-timeline {
+  border: 1px solid #2A2A3E;
+  background-color: #1A1A2E;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.vis-time-axis .vis-text {
+  color: #A0A0B8;
+  font-size: 11px;
+}
+
+.vis-time-axis .vis-grid.vis-minor {
+  border-color: #2A2A3E;
+}
+
+.vis-time-axis .vis-grid.vis-major {
+  border-color: #3A3A52;
+}
+
+.vis-panel.vis-background {
+  background-color: #1A1A2E;
+}
+
+.vis-panel.vis-center {
+  border-color: #2A2A3E;
+}
+
+.vis-panel.vis-left {
+  border-color: #2A2A3E;
+}
+
+.vis-panel.vis-bottom {
+  border-color: #2A2A3E;
+}
+
+.vis-panel.vis-top {
+  border-color: #2A2A3E;
+}
+
+/* Item base styles */
+.vis-item {
+  background-color: #2A2A4A;
+  border-color: #4A9EFF;
+  color: #E8E8F0;
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+.vis-item .vis-item-content {
+  color: #E8E8F0;
+  padding: 2px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vis-item.vis-selected {
+  background-color: #4A9EFF;
+  border-color: #4A9EFF;
+  color: #12121A;
+}
+
+.vis-item.vis-selected .vis-item-content {
+  color: #12121A;
+}
+
+/* Event type-specific border colors */
+.vis-item.event-meeting {
+  border-left: 3px solid #4A9EFF;
+}
+
+.vis-item.event-travel {
+  border-left: 3px solid #00D4AA;
+}
+
+.vis-item.event-phone_call {
+  border-left: 3px solid #FFB020;
+}
+
+.vis-item.event-legal_proceeding {
+  border-left: 3px solid #FF4757;
+}
+
+.vis-item.event-financial_transaction {
+  border-left: 3px solid #00D4AA;
+}
+
+.vis-item.event-arrest {
+  border-left: 3px solid #FF4757;
+}
+
+.vis-item.event-testimony {
+  border-left: 3px solid #F97316;
+}
+
+.vis-item.event-party {
+  border-left: 3px solid #EC4899;
+}
+
+.vis-item.event-other {
+  border-left: 3px solid #6B6B80;
+}
+
+/* Point items (dot) */
+.vis-item.vis-dot {
+  border-color: #4A9EFF;
+}
+
+.vis-item.vis-dot.event-meeting {
+  border-color: #4A9EFF;
+}
+
+.vis-item.vis-dot.event-travel {
+  border-color: #00D4AA;
+}
+
+.vis-item.vis-dot.event-legal_proceeding {
+  border-color: #FF4757;
+}
+
+.vis-item.vis-dot.event-financial_transaction {
+  border-color: #00D4AA;
+}
+
+.vis-item.vis-dot.event-arrest {
+  border-color: #FF4757;
+}
+
+/* Labels (group swimlanes) */
+.vis-label {
+  color: #A0A0B8;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.vis-group {
+  border-bottom: 1px solid #2A2A3E;
+}
+
+.vis-labelset .vis-label {
+  background-color: #12121A;
+  border-right: 1px solid #2A2A3E;
+}
+
+.vis-labelset .vis-label:hover {
+  background-color: #1A1A2E;
+}
+
+/* Custom time bar */
+.vis-custom-time {
+  background-color: #4A9EFF;
+  width: 2px;
+}
+
+/* Tooltip */
+.vis-tooltip {
+  background-color: #222240;
+  border: 1px solid #3A3A52;
+  border-radius: 6px;
+  color: #E8E8F0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 12px;
+  padding: 8px 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Range drag */
+.vis-drag-left,
+.vis-drag-right {
+  cursor: col-resize;
+}
+
+/* Time axis */
+.vis-time-axis {
+  background-color: #12121A;
+}
+
+.vis-time-axis .vis-text.vis-major {
+  color: #E8E8F0;
+  font-weight: 600;
+}
+
+.vis-time-axis .vis-text.vis-minor {
+  color: #6B6B80;
+}
+
+/* Scrollbar within timeline */
+.vis-panel.vis-center::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.vis-panel.vis-center::-webkit-scrollbar-track {
+  background: #0D0D14;
+}
+
+.vis-panel.vis-center::-webkit-scrollbar-thumb {
+  background: #3A3A52;
+  border-radius: 3px;
+}
+
+.vis-panel.vis-center::-webkit-scrollbar-thumb:hover {
+  background: #4A4A65;
+}

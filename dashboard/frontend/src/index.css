@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+@theme {
+  /* Surface Colors - Dark Theme */
+  --color-surface-base: #12121A;
+  --color-surface-raised: #1A1A2E;
+  --color-surface-overlay: #222240;
+  --color-surface-sunken: #0D0D14;
+  --color-surface-elevated: #2A2A4A;
+
+  /* Text Colors */
+  --color-text-primary: #E8E8F0;
+  --color-text-secondary: #A0A0B8;
+  --color-text-tertiary: #6B6B80;
+  --color-text-disabled: #44445A;
+
+  /* Accent Colors */
+  --color-accent-blue: #4A9EFF;
+  --color-accent-cyan: #00D4AA;
+  --color-accent-amber: #FFB020;
+  --color-accent-red: #FF4757;
+  --color-accent-purple: #A855F7;
+  --color-accent-green: #22C55E;
+  --color-accent-orange: #F97316;
+  --color-accent-pink: #EC4899;
+
+  /* Semantic Colors */
+  --color-confidence-high: #22C55E;
+  --color-confidence-medium: #FFB020;
+  --color-confidence-low: #FF4757;
+
+  /* Entity Type Colors */
+  --color-entity-person: #4A9EFF;
+  --color-entity-organization: #A855F7;
+  --color-entity-location: #22C55E;
+  --color-entity-event: #FFB020;
+  --color-entity-document: #6B6B80;
+  --color-entity-financial: #00D4AA;
+
+  /* Border */
+  --color-border-subtle: #2A2A3E;
+  --color-border-default: #3A3A52;
+  --color-border-strong: #4A4A65;
+
+  /* Spacing */
+  --spacing-px: 1px;
+
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+/* Base styles */
+body {
+  @apply bg-surface-base text-text-primary font-sans antialiased;
+  margin: 0;
+  min-height: 100vh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface-sunken);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* Selection highlight */
+::selection {
+  background-color: rgba(74, 158, 255, 0.3);
+}
+
+/* ------------------------------------------------------------------ */
+/* MapLibre GL Dark Theme Overrides                                    */
+/* ------------------------------------------------------------------ */
+
+.maplibregl-popup-content {
+  background: #1A1A2E !important;
+  border: 1px solid #2A2A3E !important;
+  border-radius: 8px !important;
+  padding: 0 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+.maplibregl-popup-close-button {
+  color: #A0A0B8 !important;
+  font-size: 18px !important;
+  padding: 4px 8px !important;
+}
+
+.maplibregl-popup-close-button:hover {
+  color: #E8E8F0 !important;
+  background: transparent !important;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: #1A1A2E !important;
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: #1A1A2E !important;
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: #1A1A2E !important;
+}
+
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #1A1A2E !important;
+}
+
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #1A1A2E !important;
+}
+
+.maplibregl-ctrl-group {
+  background: #1A1A2E !important;
+  border: 1px solid #2A2A3E !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group button {
+  filter: invert(1);
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid #2A2A3E !important;
+}
+
+.maplibregl-ctrl-attrib {
+  background: rgba(26, 26, 46, 0.8) !important;
+  color: #6B6B80 !important;
+  font-size: 10px !important;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: #4A9EFF !important;
+}

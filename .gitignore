@@ -1,0 +1,36 @@
+# Build outputs
+bin/
+obj/
+*.user
+*.suo
+
+# Downloaded files
+epstein_files/
+
+# Extraction output (large db)
+extraction_output/
+
+# Python
+epstein_extraction/venv/
+epstein_extraction/__pycache__/
+*.pyc
+.env
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.vs/
+.vscode/
+*.csproj.user
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Logs
+*.log
+logs/
