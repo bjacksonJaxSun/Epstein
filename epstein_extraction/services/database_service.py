@@ -6,6 +6,7 @@ from datetime import datetime
 from loguru import logger
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from decimal import Decimal
 from models import (
     Document, Person, Organization, Location, Event,
     Relationship, EventParticipant, Communication,
@@ -371,6 +372,77 @@ class DatabaseService:
             logger.error(f"Error inserting image analysis: {e}")
             self.db.rollback()
             return None
+
+    # ============================================
+    # FINANCIAL TRANSACTION OPERATIONS
+    # ============================================
+
+    def insert_financial_transaction(self, tx_data: Dict) -> Optional[FinancialTransaction]:
+        """
+        Insert a financial transaction
+
+        Args:
+            tx_data: Dictionary with transaction data including:
+                - amount (required): Transaction amount
+                - currency: Currency code (default: USD)
+                - transaction_date (required): Date of transaction
+                - transaction_type: Type of transaction (payment, transfer, etc.)
+                - from_person_id / from_organization_id: Source entity
+                - to_person_id / to_organization_id: Destination entity
+                - purpose: Transaction purpose/description
+                - source_document_id: Document where this was found
+
+        Returns:
+            FinancialTransaction object or None
+        """
+        try:
+            # Check for duplicate transaction
+            existing = self.db.query(FinancialTransaction).filter_by(
+                amount=tx_data['amount'],
+                transaction_date=tx_data['transaction_date'],
+                from_person_id=tx_data.get('from_person_id'),
+                to_person_id=tx_data.get('to_person_id'),
+                from_organization_id=tx_data.get('from_organization_id'),
+                to_organization_id=tx_data.get('to_organization_id')
+            ).first()
+
+            if existing:
+                logger.debug(f"Transaction already exists: ${tx_data['amount']}")
+                return existing
+
+            transaction = FinancialTransaction(
+                amount=Decimal(str(tx_data['amount'])),
+                currency=tx_data.get('currency', 'USD'),
+                transaction_date=tx_data['transaction_date'],
+                transaction_type=tx_data.get('transaction_type'),
+                from_person_id=tx_data.get('from_person_id'),
+                from_organization_id=tx_data.get('from_organization_id'),
+                to_person_id=tx_data.get('to_person_id'),
+                to_organization_id=tx_data.get('to_organization_id'),
+                purpose=tx_data.get('purpose'),
+                source_document_id=tx_data.get('source_document_id')
+            )
+
+            self.db.add(transaction)
+            self.db.commit()
+            self.db.refresh(transaction)
+
+            logger.info(f"Inserted financial transaction: ${tx_data['amount']} {tx_data.get('currency', 'USD')}")
+            return transaction
+
+        except Exception as e:
+            logger.error(f"Error inserting financial transaction: {e}")
+            self.db.rollback()
+            return None
+
+    def get_or_create_organization(self, org_name: str, **kwargs) -> Optional[Organization]:
+        """Get existing organization or create new one"""
+        existing = self.db.query(Organization).filter_by(organization_name=org_name).first()
+        if existing:
+            return existing
+
+        org_data = {'organization_name': org_name, **kwargs}
+        return self.insert_organization(org_data)
 
     # ============================================
     # EXTRACTION LOG

@@ -25,7 +25,8 @@ public class Document
     public string? UpdatedAt { get; set; }
 
     // Navigation properties
-    public ICollection<Person> MentionedPersons { get; set; } = new List<Person>();
+    public ICollection<DocumentPerson> DocumentPeople { get; set; } = new List<DocumentPerson>();
+    public ICollection<Person> MentionedPersons { get; set; } = new List<Person>();  // Legacy - via FirstMentionedInDocId
     public ICollection<Organization> MentionedOrganizations { get; set; } = new List<Organization>();
     public ICollection<Location> MentionedLocations { get; set; } = new List<Location>();
     public ICollection<Relationship> SourceRelationships { get; set; } = new List<Relationship>();

@@ -14,15 +14,15 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5203',
         changeOrigin: true,
       },
       '/graphql': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5203',
         changeOrigin: true,
       },
       '/hubs': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5203',
         changeOrigin: true,
         ws: true,
       },

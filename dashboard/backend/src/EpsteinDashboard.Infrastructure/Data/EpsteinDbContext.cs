@@ -23,6 +23,7 @@ public class EpsteinDbContext : DbContext
     public DbSet<MediaFile> MediaFiles => Set<MediaFile>();
     public DbSet<MediaPerson> MediaPersons => Set<MediaPerson>();
     public DbSet<MediaEvent> MediaEvents => Set<MediaEvent>();
+    public DbSet<DocumentPerson> DocumentPersons => Set<DocumentPerson>();
     public DbSet<VisualEntity> VisualEntities => Set<VisualEntity>();
     public DbSet<ImageAnalysis> ImageAnalyses => Set<ImageAnalysis>();
     public DbSet<ExtractionLog> ExtractionLogs => Set<ExtractionLog>();

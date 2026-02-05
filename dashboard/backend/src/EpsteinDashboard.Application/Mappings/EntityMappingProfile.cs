@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AutoMapper;
 using EpsteinDashboard.Application.DTOs;
 using EpsteinDashboard.Core.Entities;
@@ -17,7 +18,17 @@ public class EntityMappingProfile : Profile
         CreateMap<Person, PersonDto>();
         CreateMap<Person, PersonListDto>();
         CreateMap<Person, PersonDetailDto>()
-            .ForMember(dest => dest.Relationships, opt => opt.Ignore());
+            .ForMember(dest => dest.Relationships, opt => opt.Ignore())
+            .ForMember(dest => dest.RelationshipCount, opt => opt.Ignore())
+            .ForMember(dest => dest.EventCount, opt => opt.Ignore())
+            .ForMember(dest => dest.DocumentCount, opt => opt.Ignore())
+            .ForMember(dest => dest.FinancialTransactionCount, opt => opt.Ignore())
+            .ForMember(dest => dest.MediaCount, opt => opt.Ignore())
+            .ForMember(dest => dest.NameVariations, opt => opt.MapFrom(src => ParseJsonArray(src.NameVariations)))
+            .ForMember(dest => dest.Roles, opt => opt.MapFrom(src => ParseJsonArray(src.Roles)))
+            .ForMember(dest => dest.EmailAddresses, opt => opt.MapFrom(src => ParseJsonArray(src.EmailAddresses)))
+            .ForMember(dest => dest.PhoneNumbers, opt => opt.MapFrom(src => ParseJsonArray(src.PhoneNumbers)))
+            .ForMember(dest => dest.Addresses, opt => opt.MapFrom(src => ParseJsonArray(src.Addresses)));
 
         // Organization
         CreateMap<Organization, OrganizationDto>()
@@ -99,5 +110,22 @@ public class EntityMappingProfile : Profile
             .ForMember(dest => dest.NodeType,
                 opt => opt.MapFrom(src => src.NodeType.ToString()));
         CreateMap<NetworkEdge, NetworkEdgeDto>();
+    }
+
+    private static List<string>? ParseJsonArray(string? jsonString)
+    {
+        if (string.IsNullOrWhiteSpace(jsonString))
+            return null;
+
+        try
+        {
+            var result = JsonSerializer.Deserialize<List<string>>(jsonString);
+            return result?.Count > 0 ? result : null;
+        }
+        catch
+        {
+            // If it's not valid JSON, treat the string as a single item
+            return new List<string> { jsonString };
+        }
     }
 }

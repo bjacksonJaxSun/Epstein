@@ -8,7 +8,7 @@ interface NetworkGraphProps {
   data: NetworkGraphData | undefined;
   isLoading: boolean;
   layoutName: string;
-  onDoubleClickNode: (nodeId: string, nodeType: string) => void;
+  onDoubleClickNode: (nodeId: string, nodeType: string, label: string) => void;
 }
 
 const NODE_COLORS: Record<string, string> = {
@@ -68,15 +68,19 @@ function transformToElements(graph: NetworkGraphData): ElementDefinition[] {
     connectionCounts.set(edge.target, (connectionCounts.get(edge.target) ?? 0) + 1);
   }
 
-  const nodes: ElementDefinition[] = graph.nodes.map((n) => ({
-    data: {
-      id: n.id,
-      label: n.label,
-      type: n.type,
-      size: Math.max(30, Math.min(80, 30 + (connectionCounts.get(n.id) ?? 0) * 5)),
-      color: NODE_COLORS[n.type] ?? '#6B6B80',
-    },
-  }));
+  const nodes: ElementDefinition[] = graph.nodes.map((n) => {
+    // Handle both 'type' and 'nodeType' from API, normalize to lowercase
+    const nodeType = ((n as any).nodeType ?? n.type ?? 'person').toLowerCase();
+    return {
+      data: {
+        id: n.id,
+        label: n.label,
+        type: nodeType,
+        size: Math.max(30, Math.min(80, 30 + (connectionCounts.get(n.id) ?? 0) * 5)),
+        color: NODE_COLORS[nodeType] ?? '#6B6B80',
+      },
+    };
+  });
 
   const edges: ElementDefinition[] = graph.edges.map((e, i) => ({
     data: {
@@ -280,14 +284,19 @@ export function NetworkGraph({
       const node = evt.target;
       const nodeId = node.data('id') as string;
       const nodeType = node.data('type') as string;
-      selectEntity(nodeId, nodeType);
+      // Extract numeric ID from format like "person-3" or "organization-42"
+      const numericId = nodeId.includes('-') ? nodeId.split('-')[1] : nodeId;
+      selectEntity(numericId, nodeType);
     });
 
     cy.on('dbltap', 'node', (evt) => {
       const node = evt.target;
       const nodeId = node.data('id') as string;
       const nodeType = node.data('type') as string;
-      onDoubleClickNode(nodeId, nodeType);
+      const nodeLabel = node.data('label') as string;
+      // Extract numeric ID from format like "person-3"
+      const numericId = nodeId.includes('-') ? nodeId.split('-')[1] : nodeId;
+      onDoubleClickNode(numericId, nodeType, nodeLabel);
     });
 
     cy.on('mouseover', 'node', (evt) => {

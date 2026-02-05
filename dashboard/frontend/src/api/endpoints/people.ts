@@ -5,6 +5,7 @@ import type {
   PaginatedResponse,
   Relationship,
   NetworkGraph,
+  EntityFrequency,
 } from '@/types';
 
 // Helper to safely parse JSON strings from the backend
@@ -48,4 +49,6 @@ export const peopleApi = {
     apiGet<Relationship[]>(`/people/${id}/relationships`),
   getNetwork: (id: number, depth = 2) =>
     apiGet<NetworkGraph>(`/people/${id}/network`, { depth }),
+  getFrequencies: (limit = 500) =>
+    apiGet<EntityFrequency[]>('/people/frequencies', { limit }),
 };

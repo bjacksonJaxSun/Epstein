@@ -34,4 +34,5 @@ public class Person
     public ICollection<EvidenceItem> SeizedFromItems { get; set; } = new List<EvidenceItem>();
     public ICollection<MediaPerson> MediaAppearances { get; set; } = new List<MediaPerson>();
     public ICollection<VisualEntity> VisualIdentifications { get; set; } = new List<VisualEntity>();
+    public ICollection<DocumentPerson> DocumentMentions { get; set; } = new List<DocumentPerson>();
 }

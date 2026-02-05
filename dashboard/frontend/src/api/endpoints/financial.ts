@@ -17,5 +17,5 @@ export const financialApi = {
       page: params?.page != null ? params.page - 1 : undefined,
     }),
   getSankeyData: (params?: { minAmount?: number }) =>
-    apiGet<SankeyData>('/financial/sankey', params),
+    apiGet<SankeyData>('/financial/flows', params),
 };

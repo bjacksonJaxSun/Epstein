@@ -25,12 +25,12 @@ public class PersonDetailDto
 {
     public long PersonId { get; set; }
     public string FullName { get; set; } = string.Empty;
-    public string? NameVariations { get; set; }
+    public List<string>? NameVariations { get; set; }
     public string? PrimaryRole { get; set; }
-    public string? Roles { get; set; }
-    public string? EmailAddresses { get; set; }
-    public string? PhoneNumbers { get; set; }
-    public string? Addresses { get; set; }
+    public List<string>? Roles { get; set; }
+    public List<string>? EmailAddresses { get; set; }
+    public List<string>? PhoneNumbers { get; set; }
+    public List<string>? Addresses { get; set; }
     public bool? IsRedacted { get; set; }
     public string? VictimIdentifier { get; set; }
     public string? DateOfBirth { get; set; }
@@ -41,4 +41,26 @@ public class PersonDetailDto
     public string? CreatedAt { get; set; }
     public string? UpdatedAt { get; set; }
     public List<RelationshipDto> Relationships { get; set; } = new();
+
+    // Counts for related entities
+    public int RelationshipCount { get; set; }
+    public int EventCount { get; set; }
+    public int DocumentCount { get; set; }
+    public int FinancialTransactionCount { get; set; }
+    public int MediaCount { get; set; }
+}
+
+public class EntityFrequencyDto
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string EntityType { get; set; } = "person"; // person, organization
+    public string? PrimaryRole { get; set; }
+    public int DocumentCount { get; set; }
+    public int EventCount { get; set; }
+    public int RelationshipCount { get; set; }
+    public int FinancialCount { get; set; }
+    public decimal FinancialTotal { get; set; }
+    public int MediaCount { get; set; }
+    public int TotalMentions { get; set; } // Sum of all counts
 }

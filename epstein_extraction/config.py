@@ -12,6 +12,19 @@ from loguru import logger
 load_dotenv()
 
 # ============================================
+# TESSERACT OCR CONFIGURATION
+# ============================================
+TESSERACT_PATH = os.getenv("TESSERACT_PATH", r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+if Path(TESSERACT_PATH).exists():
+    # Configure pytesseract to use the correct path
+    try:
+        import pytesseract
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+        logger.info(f"Tesseract OCR configured: {TESSERACT_PATH}")
+    except ImportError:
+        pass  # pytesseract not installed yet
+
+# ============================================
 # PATHS
 # ============================================
 BASE_DIR = Path(__file__).parent.parent
@@ -23,6 +36,31 @@ LOGS_DIR = OUTPUT_DIR / "logs"
 # Create directories if they don't exist
 OUTPUT_DIR.mkdir(exist_ok=True)
 LOGS_DIR.mkdir(exist_ok=True)
+
+# ============================================
+# DATASET CONFIGURATIONS
+# ============================================
+# Each dataset can be configured with its path and type
+# type: 'load_file' (has OPT/DAT files) or 'directory' (flat PDF directory)
+DATASETS = {
+    'dataset_1': {
+        'name': 'DataSet 1 - FBI Evidence Photos',
+        'path': Path(r'D:\DataSet1_extracted\DataSet 1\DataSet 1'),
+        'type': 'load_file',
+        'volume_pattern': 'VOL*',
+        'description': 'FBI evidence photographs from July 2019 search',
+    },
+    'dataset_9': {
+        'name': 'DataSet 9',
+        'path': DATASET_9_DIR,
+        'type': 'directory',
+        'file_pattern': 'EFTA*.pdf',
+        'description': 'Document collection',
+    },
+}
+
+# Default dataset to process
+DEFAULT_DATASET = os.getenv('DATASET', 'dataset_1')
 
 # ============================================
 # DATABASE CONFIGURATION

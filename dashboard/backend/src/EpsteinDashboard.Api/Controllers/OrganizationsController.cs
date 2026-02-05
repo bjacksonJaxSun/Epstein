@@ -44,4 +44,25 @@ public class OrganizationsController : ControllerBase
         if (org == null) return NotFound();
         return Ok(_mapper.Map<OrganizationDto>(org));
     }
+
+    [HttpGet("{id:long}/documents")]
+    public async Task<ActionResult<IReadOnlyList<DocumentListDto>>> GetDocuments(long id, CancellationToken cancellationToken)
+    {
+        var documents = await _repository.GetDocumentsAsync(id, cancellationToken);
+        return Ok(_mapper.Map<IReadOnlyList<DocumentListDto>>(documents));
+    }
+
+    [HttpGet("{id:long}/financials")]
+    public async Task<ActionResult<IReadOnlyList<FinancialTransactionDto>>> GetFinancials(long id, CancellationToken cancellationToken)
+    {
+        var transactions = await _repository.GetFinancialTransactionsAsync(id, cancellationToken);
+        return Ok(_mapper.Map<IReadOnlyList<FinancialTransactionDto>>(transactions));
+    }
+
+    [HttpGet("{id:long}/people")]
+    public async Task<ActionResult<IReadOnlyList<PersonListDto>>> GetPeople(long id, CancellationToken cancellationToken)
+    {
+        var people = await _repository.GetRelatedPeopleAsync(id, cancellationToken);
+        return Ok(_mapper.Map<IReadOnlyList<PersonListDto>>(people));
+    }
 }

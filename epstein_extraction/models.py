@@ -53,6 +53,7 @@ class Document(Base):
     events = relationship("Event", back_populates="source_document")
     media_files = relationship("MediaFile", back_populates="source_document")
     communications = relationship("Communication", back_populates="source_document")
+    people_mentioned = relationship("DocumentPerson", back_populates="document")
 
     # PostgreSQL-specific constraints removed for SQLite compatibility
     # __table_args__ = (
@@ -92,6 +93,32 @@ class Person(Base):
     relationships_to = relationship("Relationship", foreign_keys="Relationship.person2_id", back_populates="person2")
     event_participations = relationship("EventParticipant", back_populates="person")
     media_appearances = relationship("MediaPerson", back_populates="person")
+    document_mentions = relationship("DocumentPerson", back_populates="person")
+
+
+class DocumentPerson(Base):
+    """Junction table linking documents to people mentioned in them"""
+    __tablename__ = 'document_people'
+
+    id = Column(Integer, primary_key=True)
+    document_id = Column(Integer, ForeignKey('documents.document_id', ondelete='CASCADE'), nullable=False)
+    person_id = Column(Integer, ForeignKey('people.person_id', ondelete='CASCADE'), nullable=False)
+
+    mention_count = Column(Integer, default=1)  # How many times person is mentioned in doc
+    mention_context = Column(Text)  # Sample context where person is mentioned
+    role_in_document = Column(String(100))  # Role of person in this specific document
+    confidence = Column(Numeric(5, 4), default=0.8)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    document = relationship("Document", back_populates="people_mentioned")
+    person = relationship("Person", back_populates="document_mentions")
+
+    __table_args__ = (
+        UniqueConstraint('document_id', 'person_id', name='uq_document_person'),
+    )
+
 
 class Organization(Base):
     __tablename__ = 'organizations'

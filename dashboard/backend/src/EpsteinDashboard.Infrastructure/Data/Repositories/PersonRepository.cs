@@ -128,9 +128,11 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
 
     public async Task<IReadOnlyList<Document>> GetDocumentsForPersonAsync(long personId, CancellationToken cancellationToken = default)
     {
-        // Documents where this person is first mentioned
-        var docs = await Context.Documents.AsNoTracking()
-            .Where(d => d.MentionedPersons.Any(p => p.PersonId == personId))
+        // Documents where this person is mentioned (via document_people junction table)
+        var docs = await Context.DocumentPersons.AsNoTracking()
+            .Where(dp => dp.PersonId == personId)
+            .Include(dp => dp.Document)
+            .Select(dp => dp.Document!)
             .ToListAsync(cancellationToken);
 
         return docs;
@@ -154,5 +156,80 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
             .Include(mp => mp.MediaFile)
             .Select(mp => mp.MediaFile!)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<(Person Person, int DocumentCount, int EventCount, int RelationshipCount, int FinancialCount, decimal FinancialTotal, int MediaCount)>> GetAllWithFrequenciesAsync(int limit = 500, CancellationToken cancellationToken = default)
+    {
+        await using var connection = new SqliteConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        var sql = @"
+            SELECT
+                p.person_id,
+                p.full_name,
+                p.primary_role,
+                p.occupation,
+                p.confidence_level,
+                COALESCE(doc.cnt, 0) as document_count,
+                COALESCE(evt.cnt, 0) as event_count,
+                COALESCE(rel.cnt, 0) as relationship_count,
+                COALESCE(fin.cnt, 0) as financial_count,
+                COALESCE(fin.total, 0) as financial_total,
+                COALESCE(med.cnt, 0) as media_count
+            FROM people p
+            LEFT JOIN (
+                SELECT person_id, COUNT(*) as cnt
+                FROM document_people
+                GROUP BY person_id
+            ) doc ON doc.person_id = p.person_id
+            LEFT JOIN (
+                SELECT person_id, COUNT(*) as cnt
+                FROM event_participants
+                GROUP BY person_id
+            ) evt ON evt.person_id = p.person_id
+            LEFT JOIN (
+                SELECT person_id, COUNT(*) as cnt
+                FROM (
+                    SELECT person1_id as person_id FROM relationships
+                    UNION ALL
+                    SELECT person2_id as person_id FROM relationships
+                )
+                GROUP BY person_id
+            ) rel ON rel.person_id = p.person_id
+            LEFT JOIN (
+                SELECT person_id, COUNT(*) as cnt, SUM(COALESCE(amount, 0)) as total
+                FROM (
+                    SELECT from_person_id as person_id, amount FROM financial_transactions WHERE from_person_id IS NOT NULL
+                    UNION ALL
+                    SELECT to_person_id as person_id, amount FROM financial_transactions WHERE to_person_id IS NOT NULL
+                )
+                GROUP BY person_id
+            ) fin ON fin.person_id = p.person_id
+            LEFT JOIN (
+                SELECT person_id, COUNT(*) as cnt
+                FROM media_people
+                GROUP BY person_id
+            ) med ON med.person_id = p.person_id
+            ORDER BY (COALESCE(doc.cnt, 0) + COALESCE(evt.cnt, 0) + COALESCE(rel.cnt, 0) + COALESCE(fin.cnt, 0) + COALESCE(med.cnt, 0)) DESC
+            LIMIT @Limit;";
+
+        var results = await connection.QueryAsync<dynamic>(sql, new { Limit = limit });
+
+        return results.Select(r => (
+            Person: new Person
+            {
+                PersonId = (long)r.person_id,
+                FullName = (string)(r.full_name ?? "Unknown"),
+                PrimaryRole = r.primary_role as string,
+                Occupation = r.occupation as string,
+                ConfidenceLevel = r.confidence_level as string
+            },
+            DocumentCount: (int)(r.document_count ?? 0),
+            EventCount: (int)(r.event_count ?? 0),
+            RelationshipCount: (int)(r.relationship_count ?? 0),
+            FinancialCount: (int)(r.financial_count ?? 0),
+            FinancialTotal: (decimal)(r.financial_total ?? 0m),
+            MediaCount: (int)(r.media_count ?? 0)
+        )).ToList();
     }
 }

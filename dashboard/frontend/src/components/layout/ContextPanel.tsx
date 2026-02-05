@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useSelectionStore } from '@/stores/useSelectionStore';
 import { useBookmarkStore } from '@/stores/useBookmarkStore';
-import { usePersonDetail } from '@/hooks';
+import { usePersonDetail, usePersonDocuments } from '@/hooks';
 import { ConfidenceBadge, LoadingSpinner } from '@/components/shared';
 import { cn } from '@/lib/utils';
 
@@ -74,6 +74,7 @@ function InfoRow({
 function PersonContextContent({ personId }: { personId: number }) {
   const navigate = useNavigate();
   const { data: person, isLoading, isError } = usePersonDetail(personId);
+  const { data: documents, isLoading: isLoadingDocs } = usePersonDocuments(personId);
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -133,6 +134,43 @@ function PersonContextContent({ personId }: { personId: number }) {
         />
         {person.notes && <InfoRow label="Notes" value={person.notes} />}
       </div>
+
+      {/* Related Documents */}
+      {(documents && documents.length > 0) && (
+        <div className="flex flex-col gap-2">
+          <h4 className="text-xs font-medium uppercase tracking-wider text-text-tertiary">
+            Related Documents ({documents.length})
+          </h4>
+          <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto rounded-lg border border-border-subtle bg-surface-base p-2">
+            {documents.slice(0, 10).map((doc: any) => (
+              <a
+                key={doc.documentId}
+                href={`/api/documents/${doc.documentId}/file`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors"
+              >
+                <FileText className="h-3.5 w-3.5 shrink-0 text-accent-blue" />
+                <span className="truncate flex-1">{doc.eftaNumber}</span>
+                {doc.documentType && (
+                  <span className="shrink-0 text-text-disabled">{doc.documentType}</span>
+                )}
+              </a>
+            ))}
+            {documents.length > 10 && (
+              <p className="text-xs text-text-disabled text-center py-1">
+                +{documents.length - 10} more documents
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+      {isLoadingDocs && (
+        <div className="flex items-center gap-2 text-xs text-text-tertiary">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-accent-blue border-t-transparent" />
+          Loading documents...
+        </div>
+      )}
 
       {/* View Full Detail button */}
       <button

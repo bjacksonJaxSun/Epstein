@@ -9,9 +9,13 @@ import {
   X,
   Globe,
   MapPin,
+  Users,
+  FileText,
+  DollarSign,
 } from 'lucide-react';
 import { organizationsApi } from '@/api/endpoints/organizations';
 import type { Organization } from '@/api/endpoints/organizations';
+import { apiGet } from '@/api/client';
 import { LoadingSpinner } from '@/components/shared';
 import { useSelectionStore } from '@/stores/useSelectionStore';
 import { cn } from '@/lib/utils';
@@ -213,8 +217,24 @@ function OrgDetailPanel({
   org: Organization;
   onClose: () => void;
 }) {
+  // Fetch related data
+  const { data: people, isLoading: loadingPeople } = useQuery({
+    queryKey: ['organizations', org.organizationId, 'people'],
+    queryFn: () => apiGet<Array<{ personId: number; fullName: string; primaryRole?: string }>>(`/organizations/${org.organizationId}/people`),
+  });
+
+  const { data: financials, isLoading: loadingFinancials } = useQuery({
+    queryKey: ['organizations', org.organizationId, 'financials'],
+    queryFn: () => apiGet<Array<{ transactionId: number; amount: number; currency?: string; transactionDate?: string; fromName?: string; toName?: string }>>(`/organizations/${org.organizationId}/financials`),
+  });
+
+  const { data: documents, isLoading: loadingDocs } = useQuery({
+    queryKey: ['organizations', org.organizationId, 'documents'],
+    queryFn: () => apiGet<Array<{ documentId: number; eftaNumber: string; documentType?: string }>>(`/organizations/${org.organizationId}/documents`),
+  });
+
   return (
-    <div className="w-[35%] shrink-0 rounded-lg border border-border-subtle bg-surface-raised overflow-y-auto">
+    <div className="w-[35%] shrink-0 rounded-lg border border-border-subtle bg-surface-raised overflow-y-auto max-h-[calc(100vh-200px)]">
       <div className="flex items-center justify-between border-b border-border-subtle p-4">
         <h3 className="text-sm font-semibold text-text-primary">Organization Details</h3>
         <button
@@ -226,21 +246,25 @@ function OrgDetailPanel({
         </button>
       </div>
 
-      <div className="p-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Building2 className="h-5 w-5 text-entity-organization" />
-          <h4 className="text-base font-semibold text-text-primary">
-            {org.organizationName}
-          </h4>
+      <div className="p-4 space-y-4">
+        {/* Header */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Building2 className="h-5 w-5 text-entity-organization" />
+            <h4 className="text-base font-semibold text-text-primary">
+              {org.organizationName}
+            </h4>
+          </div>
+
+          {org.organizationType && (
+            <span className="inline-flex items-center rounded-sm border border-entity-organization/30 bg-entity-organization/15 px-1.5 py-0.5 text-xs font-medium text-entity-organization">
+              {org.organizationType}
+            </span>
+          )}
         </div>
 
-        {org.organizationType && (
-          <span className="inline-flex items-center rounded-sm border border-entity-organization/30 bg-entity-organization/15 px-1.5 py-0.5 text-xs font-medium text-entity-organization mb-3">
-            {org.organizationType}
-          </span>
-        )}
-
-        <dl className="flex flex-col gap-3 text-xs mt-4">
+        {/* Basic Info */}
+        <dl className="flex flex-col gap-2 text-xs">
           {org.headquartersLocation && (
             <div>
               <dt className="flex items-center gap-1 text-text-tertiary mb-0.5">
@@ -272,6 +296,98 @@ function OrgDetailPanel({
             </div>
           )}
         </dl>
+
+        {/* Related People */}
+        <div className="border-t border-border-subtle pt-4">
+          <h5 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+            <Users className="h-3.5 w-3.5" />
+            Related People {people && `(${people.length})`}
+          </h5>
+          {loadingPeople && <div className="text-xs text-text-disabled">Loading...</div>}
+          {!loadingPeople && (!people || people.length === 0) && (
+            <div className="text-xs text-text-disabled">No related people found</div>
+          )}
+          {people && people.length > 0 && (
+            <ul className="space-y-1">
+              {people.slice(0, 10).map((p) => (
+                <li key={p.personId} className="flex items-center gap-2 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-entity-person shrink-0" />
+                  <span className="text-text-primary">{p.fullName}</span>
+                  {p.primaryRole && <span className="text-text-disabled">({p.primaryRole})</span>}
+                </li>
+              ))}
+              {people.length > 10 && (
+                <li className="text-xs text-text-disabled">+{people.length - 10} more</li>
+              )}
+            </ul>
+          )}
+        </div>
+
+        {/* Financial Transactions */}
+        <div className="border-t border-border-subtle pt-4">
+          <h5 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+            <DollarSign className="h-3.5 w-3.5" />
+            Financial Transactions {financials && `(${financials.length})`}
+          </h5>
+          {loadingFinancials && <div className="text-xs text-text-disabled">Loading...</div>}
+          {!loadingFinancials && (!financials || financials.length === 0) && (
+            <div className="text-xs text-text-disabled">No financial transactions found</div>
+          )}
+          {financials && financials.length > 0 && (
+            <ul className="space-y-1.5">
+              {financials.slice(0, 5).map((f) => (
+                <li key={f.transactionId} className="text-xs rounded bg-surface-overlay p-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-accent-green font-mono">
+                      ${f.amount?.toLocaleString() ?? '0'}
+                    </span>
+                    {f.transactionDate && (
+                      <span className="text-text-disabled">{f.transactionDate.split('T')[0]}</span>
+                    )}
+                  </div>
+                  {(f.fromName || f.toName) && (
+                    <div className="text-text-tertiary mt-0.5">
+                      {f.fromName ?? '?'} → {f.toName ?? '?'}
+                    </div>
+                  )}
+                </li>
+              ))}
+              {financials.length > 5 && (
+                <li className="text-xs text-text-disabled text-center">+{financials.length - 5} more</li>
+              )}
+            </ul>
+          )}
+        </div>
+
+        {/* Related Documents */}
+        <div className="border-t border-border-subtle pt-4">
+          <h5 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-tertiary mb-2">
+            <FileText className="h-3.5 w-3.5" />
+            Documents {documents && `(${documents.length})`}
+          </h5>
+          {loadingDocs && <div className="text-xs text-text-disabled">Loading...</div>}
+          {!loadingDocs && (!documents || documents.length === 0) && (
+            <div className="text-xs text-text-disabled">No documents found</div>
+          )}
+          {documents && documents.length > 0 && (
+            <ul className="space-y-1">
+              {documents.slice(0, 5).map((d) => (
+                <li key={d.documentId}>
+                  <a
+                    href={`/api/documents/${d.documentId}/file`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-text-secondary hover:text-accent-blue"
+                  >
+                    <FileText className="h-3 w-3 shrink-0" />
+                    <span>{d.eftaNumber}</span>
+                    {d.documentType && <span className="text-text-disabled">({d.documentType})</span>}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );

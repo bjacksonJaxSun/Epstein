@@ -71,6 +71,20 @@ public class PeopleController : ControllerBase
             .Concat(person.RelationshipsAsPerson2)
             .ToList();
         dto.Relationships = _mapper.Map<List<RelationshipDto>>(allRelationships);
+        dto.RelationshipCount = allRelationships.Count;
+
+        // Get counts for related entities
+        var events = await _repository.GetEventsForPersonAsync(id, cancellationToken);
+        dto.EventCount = events.Count;
+
+        var documents = await _repository.GetDocumentsForPersonAsync(id, cancellationToken);
+        dto.DocumentCount = documents.Count;
+
+        var financials = await _repository.GetFinancialsForPersonAsync(id, cancellationToken);
+        dto.FinancialTransactionCount = financials.Count;
+
+        var media = await _repository.GetMediaForPersonAsync(id, cancellationToken);
+        dto.MediaCount = media.Count;
 
         return Ok(dto);
     }
@@ -126,5 +140,30 @@ public class PeopleController : ControllerBase
     {
         var path = await _networkService.FindConnectionAsync(person1Id, person2Id, maxDepth, cancellationToken);
         return Ok(path);
+    }
+
+    [HttpGet("frequencies")]
+    public async Task<ActionResult<IReadOnlyList<EntityFrequencyDto>>> GetFrequencies(
+        [FromQuery] int limit = 500,
+        CancellationToken cancellationToken = default)
+    {
+        var results = await _repository.GetAllWithFrequenciesAsync(limit, cancellationToken);
+
+        var dtos = results.Select(r => new EntityFrequencyDto
+        {
+            Id = r.Person.PersonId,
+            Name = r.Person.FullName,
+            EntityType = "person",
+            PrimaryRole = r.Person.PrimaryRole,
+            DocumentCount = r.DocumentCount,
+            EventCount = r.EventCount,
+            RelationshipCount = r.RelationshipCount,
+            FinancialCount = r.FinancialCount,
+            FinancialTotal = r.FinancialTotal,
+            MediaCount = r.MediaCount,
+            TotalMentions = r.DocumentCount + r.EventCount + r.RelationshipCount + r.FinancialCount + r.MediaCount
+        }).ToList();
+
+        return Ok(dtos);
     }
 }

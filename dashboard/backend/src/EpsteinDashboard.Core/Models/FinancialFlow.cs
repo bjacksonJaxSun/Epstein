@@ -4,7 +4,7 @@ public class SankeyNode
 {
     public string Id { get; set; } = string.Empty;
     public string Label { get; set; } = string.Empty;
-    public string? NodeType { get; set; }
+    public string? Type { get; set; }
 }
 
 public class SankeyLink
@@ -12,6 +12,7 @@ public class SankeyLink
     public string Source { get; set; } = string.Empty;
     public string Target { get; set; } = string.Empty;
     public decimal Value { get; set; }
+    public int TransactionCount { get; set; } = 1;
     public string? Currency { get; set; }
     public string? Purpose { get; set; }
 }

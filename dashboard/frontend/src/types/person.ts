@@ -25,3 +25,17 @@ export interface PersonDetail extends Person {
   financialTransactionCount?: number;
   mediaCount?: number;
 }
+
+export interface EntityFrequency {
+  id: number;
+  name: string;
+  entityType: string;
+  primaryRole?: string;
+  documentCount: number;
+  eventCount: number;
+  relationshipCount: number;
+  financialCount: number;
+  financialTotal: number;
+  mediaCount: number;
+  totalMentions: number;
+}

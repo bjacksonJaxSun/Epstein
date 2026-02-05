@@ -63,7 +63,7 @@ public class FinancialTransactionRepository : BaseRepository<FinancialTransactio
             .ToListAsync(cancellationToken);
 
         var nodeDict = new Dictionary<string, SankeyNode>();
-        var links = new List<SankeyLink>();
+        var linkDict = new Dictionary<string, SankeyLink>();
 
         foreach (var t in transactions)
         {
@@ -103,19 +103,34 @@ public class FinancialTransactionRepository : BaseRepository<FinancialTransactio
             }
             else continue;
 
-            if (!nodeDict.ContainsKey(sourceId))
-                nodeDict[sourceId] = new SankeyNode { Id = sourceId, Label = sourceLabel, NodeType = sourceType };
-            if (!nodeDict.ContainsKey(targetId))
-                nodeDict[targetId] = new SankeyNode { Id = targetId, Label = targetLabel, NodeType = targetType };
+            // Skip self-referential links (same source and target) - they crash Sankey diagrams
+            if (sourceId == targetId)
+                continue;
 
-            links.Add(new SankeyLink
+            if (!nodeDict.ContainsKey(sourceId))
+                nodeDict[sourceId] = new SankeyNode { Id = sourceId, Label = sourceLabel, Type = sourceType };
+            if (!nodeDict.ContainsKey(targetId))
+                nodeDict[targetId] = new SankeyNode { Id = targetId, Label = targetLabel, Type = targetType };
+
+            // Aggregate links by source-target pair
+            var linkKey = $"{sourceId}|{targetId}";
+            if (linkDict.TryGetValue(linkKey, out var existingLink))
             {
-                Source = sourceId,
-                Target = targetId,
-                Value = t.Amount ?? 0,
-                Currency = t.Currency,
-                Purpose = t.Purpose
-            });
+                existingLink.Value += t.Amount ?? 0;
+                existingLink.TransactionCount++;
+            }
+            else
+            {
+                linkDict[linkKey] = new SankeyLink
+                {
+                    Source = sourceId,
+                    Target = targetId,
+                    Value = t.Amount ?? 0,
+                    TransactionCount = 1,
+                    Currency = t.Currency,
+                    Purpose = t.Purpose
+                };
+            }
         }
 
         var totalAmount = transactions.Sum(t => t.Amount ?? 0);
@@ -129,7 +144,7 @@ public class FinancialTransactionRepository : BaseRepository<FinancialTransactio
         return new FinancialFlow
         {
             Nodes = nodeDict.Values.ToList(),
-            Links = links,
+            Links = linkDict.Values.ToList(),
             TotalAmount = totalAmount,
             PrimaryCurrency = primaryCurrency
         };

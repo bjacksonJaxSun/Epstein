@@ -8,7 +8,7 @@ public class MediaPersonConfiguration : IEntityTypeConfiguration<MediaPerson>
 {
     public void Configure(EntityTypeBuilder<MediaPerson> builder)
     {
-        builder.ToTable("media_persons");
+        builder.ToTable("media_people");
         builder.HasKey(e => e.MediaPersonId);
 
         builder.Property(e => e.MediaPersonId).HasColumnName("media_person_id");
