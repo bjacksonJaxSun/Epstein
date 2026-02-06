@@ -23,6 +23,8 @@ import {
   Download,
   Search,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
@@ -344,6 +346,29 @@ export function MediaPage() {
     return allApiItems;
   }, [isBookmarkedTab, allApiItems, checkIsBookmarked]);
 
+  // Build flat list of image items for lightbox navigation
+  const imageItems = useMemo(
+    () => allItems.filter((item) => item.media.mediaType === 'image'),
+    [allItems]
+  );
+
+  const lightboxIndex = useMemo(() => {
+    if (!lightboxMedia) return -1;
+    return imageItems.findIndex((item) => item.media.mediaFileId === lightboxMedia.mediaFileId);
+  }, [lightboxMedia, imageItems]);
+
+  const handleLightboxPrevious = useCallback(() => {
+    if (lightboxIndex > 0) {
+      setLightboxMedia(imageItems[lightboxIndex - 1].media);
+    }
+  }, [lightboxIndex, imageItems]);
+
+  const handleLightboxNext = useCallback(() => {
+    if (lightboxIndex < imageItems.length - 1) {
+      setLightboxMedia(imageItems[lightboxIndex + 1].media);
+    }
+  }, [lightboxIndex, imageItems]);
+
   // Reset when tab changes
   useEffect(() => {
     setLoadedPages(new Map());
@@ -574,6 +599,8 @@ export function MediaPage() {
         <ImageLightbox
           media={lightboxMedia}
           onClose={() => setLightboxMedia(null)}
+          onPrevious={lightboxIndex > 0 ? handleLightboxPrevious : undefined}
+          onNext={lightboxIndex < imageItems.length - 1 ? handleLightboxNext : undefined}
         />
       )}
     </div>
@@ -900,9 +927,13 @@ function MetaRow({
 function ImageLightbox({
   media,
   onClose,
+  onPrevious,
+  onNext,
 }: {
   media: MediaFile;
   onClose: () => void;
+  onPrevious?: () => void;
+  onNext?: () => void;
 }) {
   const [scale, setScale] = useState(1);
   const [rotation, setRotation] = useState(0);
@@ -916,11 +947,16 @@ function ImageLightbox({
   const handleZoomIn = () => setScale((s) => Math.min(s * 1.5, 10));
   const handleZoomOut = () => setScale((s) => Math.max(s / 1.5, 0.1));
   const handleRotate = () => setRotation((r) => (r + 90) % 360);
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setScale(1);
     setRotation(0);
     setPosition({ x: 0, y: 0 });
-  };
+  }, []);
+
+  // Reset view when media changes
+  useEffect(() => {
+    handleReset();
+  }, [media.mediaFileId, handleReset]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
@@ -967,12 +1003,20 @@ function ImageLightbox({
         case '0':
           handleReset();
           break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          onPrevious?.();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          onNext?.();
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, onPrevious, onNext, handleReset]);
 
   // Prevent body scroll when lightbox is open
   useEffect(() => {
@@ -1045,6 +1089,30 @@ function ImageLightbox({
       >
         <X className="h-5 w-5" />
       </button>
+
+      {/* Previous Button */}
+      {onPrevious && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onPrevious(); }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-surface-raised/80 backdrop-blur-sm border border-border-subtle text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors"
+          title="Previous image (Left arrow)"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      )}
+
+      {/* Next Button */}
+      {onNext && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onNext(); }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-surface-raised/80 backdrop-blur-sm border border-border-subtle text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors"
+          title="Next image (Right arrow)"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      )}
 
       {/* Image Container */}
       <div
