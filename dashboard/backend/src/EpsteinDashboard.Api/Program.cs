@@ -37,11 +37,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",   // Vite dev
-                "http://localhost:8080",   // Docker proxy
-                "http://localhost"         // Direct
-            )
+        policy.SetIsOriginAllowed(_ => true) // Allow any origin for LAN access during development
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

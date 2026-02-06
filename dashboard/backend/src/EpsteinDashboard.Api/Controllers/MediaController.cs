@@ -41,9 +41,30 @@ public class MediaController : ControllerBase
     [HttpGet("{id:long}")]
     public async Task<ActionResult<MediaFileDto>> GetMediaFile(long id, CancellationToken cancellationToken)
     {
-        var media = await _repository.GetWithAnalysisAsync(id, cancellationToken);
+        // Use simple GetByIdAsync to avoid missing table errors
+        var media = await _repository.GetByIdAsync(id, cancellationToken);
         if (media == null) return NotFound();
         return Ok(_mapper.Map<MediaFileDto>(media));
+    }
+
+    [HttpGet("{id:long}/position")]
+    public async Task<ActionResult<MediaPositionDto>> GetMediaPosition(
+        long id,
+        [FromQuery] int pageSize = 48,
+        [FromQuery] string? mediaType = null,
+        CancellationToken cancellationToken = default)
+    {
+        var position = await _repository.GetMediaPositionAsync(id, pageSize, mediaType, cancellationToken);
+        if (position == null) return NotFound();
+        return Ok(new MediaPositionDto
+        {
+            MediaFileId = position.MediaFileId,
+            Page = position.Page,
+            IndexOnPage = position.IndexOnPage,
+            GlobalIndex = position.GlobalIndex,
+            TotalCount = position.TotalCount,
+            TotalPages = position.TotalPages
+        });
     }
 
     [HttpGet("{id:long}/analysis")]
@@ -70,10 +91,28 @@ public class MediaController : ControllerBase
                 "png" => "image/png",
                 "gif" => "image/gif",
                 "webp" => "image/webp",
+                "bmp" => "image/bmp",
+                "tiff" or "tif" => "image/tiff",
                 _ => "application/octet-stream"
             },
-            "video" => "video/mp4",
-            "audio" => "audio/mpeg",
+            "video" => media.FileFormat?.ToLowerInvariant() switch
+            {
+                "mp4" or "m4v" => "video/mp4",
+                "webm" => "video/webm",
+                "avi" => "video/x-msvideo",
+                "mov" => "video/quicktime",
+                "wmv" => "video/x-ms-wmv",
+                "mkv" => "video/x-matroska",
+                _ => "video/mp4"
+            },
+            "audio" => media.FileFormat?.ToLowerInvariant() switch
+            {
+                "mp3" => "audio/mpeg",
+                "wav" => "audio/wav",
+                "ogg" => "audio/ogg",
+                "m4a" or "aac" => "audio/aac",
+                _ => "audio/mpeg"
+            },
             "document" => "application/pdf",
             _ => "application/octet-stream"
         };

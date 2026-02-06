@@ -57,4 +57,39 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
             .Where(a => a.MediaFileId == mediaFileId)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<MediaPositionResult?> GetMediaPositionAsync(long id, int pageSize, string? mediaType = null, CancellationToken cancellationToken = default)
+    {
+        var query = DbSet.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(mediaType))
+            query = query.Where(m => m.MediaType == mediaType);
+
+        // Default sort is by MediaFileId ascending
+        query = query.OrderBy(m => m.MediaFileId);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        // Count how many items come before this ID
+        var position = await query.CountAsync(m => m.MediaFileId < id, cancellationToken);
+
+        // Verify the item exists
+        var exists = await query.AnyAsync(m => m.MediaFileId == id, cancellationToken);
+        if (!exists)
+            return null;
+
+        var page = position / pageSize;
+        var indexOnPage = position % pageSize;
+        var totalPages = pageSize > 0 ? (int)Math.Ceiling((double)totalCount / pageSize) : 0;
+
+        return new MediaPositionResult
+        {
+            MediaFileId = id,
+            Page = page,
+            IndexOnPage = indexOnPage,
+            GlobalIndex = position,
+            TotalCount = totalCount,
+            TotalPages = totalPages
+        };
+    }
 }

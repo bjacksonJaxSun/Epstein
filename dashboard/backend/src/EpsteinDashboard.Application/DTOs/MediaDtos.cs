@@ -19,6 +19,7 @@ public class MediaFileDto
     public bool? IsSensitive { get; set; }
     public string? ClassificationLevel { get; set; }
     public string? CreatedAt { get; set; }
+    public long? SourceDocumentId { get; set; }
 }
 
 public class ImageAnalysisDto
@@ -37,4 +38,14 @@ public class ImageAnalysisDto
     public int? FaceCount { get; set; }
     public string? SceneType { get; set; }
     public string? CreatedAt { get; set; }
+}
+
+public class MediaPositionDto
+{
+    public long MediaFileId { get; set; }
+    public int Page { get; set; }
+    public int IndexOnPage { get; set; }
+    public int GlobalIndex { get; set; }
+    public int TotalCount { get; set; }
+    public int TotalPages { get; set; }
 }

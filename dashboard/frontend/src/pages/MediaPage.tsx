@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Image,
   Video,
@@ -21,13 +21,17 @@ import {
   RotateCw,
   Maximize2,
   Download,
+  Search,
+  ArrowRight,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { mediaApi } from '@/api/endpoints/media';
 import { LoadingSpinner } from '@/components/shared';
 import { cn } from '@/lib/utils';
 import { useBookmarkStore } from '@/stores/useBookmarkStore';
-import type { MediaFile } from '@/types';
+import type { MediaFile, PaginatedResponse } from '@/types';
 
 type MediaTab = 'all' | 'image' | 'video' | 'audio' | 'document' | 'bookmarked';
 
@@ -99,7 +103,21 @@ export function MediaPage() {
   const [activeTab, setActiveTab] = useState<MediaTab>('all');
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   const [lightboxMedia, setLightboxMedia] = useState<MediaFile | null>(null);
-  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const [goToIdInput, setGoToIdInput] = useState('');
+  const [goToIdError, setGoToIdError] = useState<string | null>(null);
+  const [isJumping, setIsJumping] = useState(false);
+
+  // Bi-directional pagination state
+  const [loadedPages, setLoadedPages] = useState<Map<number, PaginatedResponse<MediaFile>>>(new Map());
+  const [currentStartPage, setCurrentStartPage] = useState(0);
+  const [totalInfo, setTotalInfo] = useState({ totalCount: 0, totalPages: 0 });
+  const [isLoadingPage, setIsLoadingPage] = useState(false);
+  const isLoadingRef = useRef(false); // Ref to track loading state across renders
+
+  const loadMoreTopRef = useRef<HTMLDivElement>(null);
+  const loadMoreBottomRef = useRef<HTMLDivElement>(null);
+  const topTriggerReady = useRef(true); // Prevents re-triggering until user scrolls away
+  const queryClient = useQueryClient();
 
   const { bookmarks, addBookmark, removeBookmark, isBookmarked: checkIsBookmarked, getBookmark } = useBookmarkStore();
 
@@ -134,8 +152,95 @@ export function MediaPage() {
   );
 
   const handleOpenDocument = (documentId: number) => {
-    // Open the source PDF in a new tab
     window.open(`/api/documents/${documentId}/file`, '_blank');
+  };
+
+  const isBookmarkedTab = activeTab === 'bookmarked';
+  const queryMediaType = isBookmarkedTab ? undefined : (activeTab !== 'all' ? activeTab : undefined);
+
+  // Load a specific page
+  const loadPage = useCallback(async (pageNum: number) => {
+    // Use ref for immediate check to prevent race conditions
+    if (loadedPages.has(pageNum) || isLoadingRef.current) return;
+
+    isLoadingRef.current = true;
+    setIsLoadingPage(true);
+    try {
+      const result = await mediaApi.list({
+        page: pageNum + 1, // API uses 1-based for our call, converts to 0-based
+        pageSize: PAGE_SIZE,
+        mediaType: queryMediaType,
+      });
+      setLoadedPages(prev => new Map(prev).set(pageNum, result));
+      setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
+    } finally {
+      isLoadingRef.current = false;
+      setIsLoadingPage(false);
+    }
+  }, [loadedPages, queryMediaType]);
+
+  // Initial load - page 0
+  const { isLoading, isError } = useQuery({
+    queryKey: ['media-initial', isBookmarkedTab ? 'all' : activeTab],
+    queryFn: async () => {
+      const result = await mediaApi.list({
+        page: 1,
+        pageSize: PAGE_SIZE,
+        mediaType: queryMediaType,
+      });
+      setLoadedPages(new Map([[0, result]]));
+      setCurrentStartPage(0);
+      setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
+      return result;
+    },
+  });
+
+  // Handle "Go to ID" - jump directly to the page containing that ID
+  const handleGoToId = async () => {
+    const id = parseInt(goToIdInput.trim(), 10);
+    if (isNaN(id) || id <= 0) {
+      setGoToIdError('Please enter a valid media ID');
+      return;
+    }
+
+    setGoToIdError(null);
+    setIsJumping(true);
+
+    try {
+      // Get the position of this media ID from the backend
+      const position = await mediaApi.getPosition(id, PAGE_SIZE, queryMediaType);
+
+      // Load that specific page - clear existing pages first to avoid gaps
+      const pageNum = position.page;
+      const result = await mediaApi.list({
+        page: pageNum + 1,
+        pageSize: PAGE_SIZE,
+        mediaType: queryMediaType,
+      });
+
+      // Replace all loaded pages with just this one page
+      setLoadedPages(new Map([[pageNum, result]]));
+      setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
+      setCurrentStartPage(pageNum);
+      setGoToIdInput('');
+
+      // Get the media for the sidebar
+      const media = await mediaApi.getById(id);
+      setSelectedMedia(media);
+
+      // Wait for render then scroll to the element
+      setTimeout(() => {
+        const element = document.getElementById(`media-card-${id}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+
+    } catch {
+      setGoToIdError(`Media ID ${id} not found`);
+    } finally {
+      setIsJumping(false);
+    }
   };
 
   const handleOpenLightbox = (media: MediaFile) => {
@@ -146,115 +251,147 @@ export function MediaPage() {
     }
   };
 
-  const isBookmarkedTab = activeTab === 'bookmarked';
-
-  // For bookmarked tab, we fetch 'all' and filter client-side
-  const queryMediaType = isBookmarkedTab ? undefined : (activeTab !== 'all' ? activeTab : undefined);
-
-  const {
-    data,
-    isLoading,
-    isError,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: ['media-infinite', isBookmarkedTab ? 'all' : activeTab],
-    queryFn: async ({ pageParam = 1 }) => {
-      const result = await mediaApi.list({
-        page: pageParam,
-        pageSize: PAGE_SIZE,
-        mediaType: queryMediaType,
-      });
-      return result;
-    },
-    getNextPageParam: (lastPage) => {
-      if (lastPage.page < lastPage.totalPages - 1) {
-        return lastPage.page + 2; // API uses 0-based pages, we use 1-based
-      }
-      return undefined;
-    },
-    initialPageParam: 1,
-  });
-
-  // Intersection Observer for infinite scroll
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const [entry] = entries;
-      if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
-      }
-    },
-    [fetchNextPage, hasNextPage, isFetchingNextPage]
+  // Get sorted page numbers and items
+  const sortedPageNumbers = useMemo(() =>
+    Array.from(loadedPages.keys()).sort((a, b) => a - b),
+    [loadedPages]
   );
 
+  const minLoadedPage = sortedPageNumbers.length > 0 ? sortedPageNumbers[0] : 0;
+  const maxLoadedPage = sortedPageNumbers.length > 0 ? sortedPageNumbers[sortedPageNumbers.length - 1] : 0;
+  const hasPreviousPage = minLoadedPage > 0;
+  const hasNextPage = maxLoadedPage < totalInfo.totalPages - 1;
+
+  // Load previous page (above current content)
+  const loadPreviousPage = useCallback(async () => {
+    if (minLoadedPage <= 0 || isLoadingRef.current) return;
+    await loadPage(minLoadedPage - 1);
+  }, [minLoadedPage, loadPage]);
+
+  // Load next page (below current content)
+  const loadNextPage = useCallback(async () => {
+    if (maxLoadedPage >= totalInfo.totalPages - 1 || isLoadingRef.current) return;
+    await loadPage(maxLoadedPage + 1);
+  }, [maxLoadedPage, totalInfo.totalPages, loadPage]);
+
+  // Intersection observers for bi-directional scroll
   useEffect(() => {
-    const element = loadMoreRef.current;
-    if (!element) return;
+    const topElement = loadMoreTopRef.current;
+    const bottomElement = loadMoreBottomRef.current;
+    if (!bottomElement) return;
 
-    const observer = new IntersectionObserver(handleObserver, {
-      root: null,
-      rootMargin: '200px',
-      threshold: 0,
-    });
+    // Top observer: only triggers once per scroll-to-top action
+    let topObserver: IntersectionObserver | null = null;
+    if (topElement && minLoadedPage > 0) {
+      topObserver = new IntersectionObserver(
+        (entries) => {
+          const isIntersecting = entries[0].isIntersecting;
 
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [handleObserver]);
+          if (isIntersecting && topTriggerReady.current && !isLoadingRef.current) {
+            // Trigger load and mark as not ready until user scrolls away
+            topTriggerReady.current = false;
+            loadPreviousPage();
+          } else if (!isIntersecting) {
+            // User scrolled away, re-arm the trigger
+            topTriggerReady.current = true;
+          }
+        },
+        { root: null, rootMargin: '50px', threshold: 0 }
+      );
+      topObserver.observe(topElement);
+    }
 
-  const allApiItems = data?.pages.flatMap((page) => page.items) ?? [];
-  const totalCount = data?.pages[0]?.totalCount ?? 0;
+    // Bottom observer: standard infinite scroll
+    const bottomObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingRef.current && maxLoadedPage < totalInfo.totalPages - 1) {
+          loadNextPage();
+        }
+      },
+      { root: null, rootMargin: '200px', threshold: 0 }
+    );
+    bottomObserver.observe(bottomElement);
 
-  // For bookmarked tab, we need to fetch all bookmarked items
-  // For now, filter from loaded items (user can scroll to load more first)
+    return () => {
+      topObserver?.disconnect();
+      bottomObserver.disconnect();
+    };
+  }, [minLoadedPage, maxLoadedPage, totalInfo.totalPages, loadPreviousPage, loadNextPage]);
+
+  // Combine all loaded pages' items in order
+  const allApiItems = useMemo(() => {
+    const items: Array<{ media: MediaFile; globalIndex: number }> = [];
+    for (const pageNum of sortedPageNumbers) {
+      const page = loadedPages.get(pageNum);
+      if (page) {
+        page.items.forEach((item, idx) => {
+          items.push({
+            media: item,
+            globalIndex: pageNum * PAGE_SIZE + idx + 1,
+          });
+        });
+      }
+    }
+    return items;
+  }, [loadedPages, sortedPageNumbers]);
+
+  const totalCount = totalInfo.totalCount;
+
   const allItems = useMemo(() => {
     if (isBookmarkedTab) {
-      return allApiItems.filter((item) => checkIsBookmarked(item.mediaFileId, 'media'));
+      return allApiItems.filter((item) => checkIsBookmarked(item.media.mediaFileId, 'media'));
     }
     return allApiItems;
   }, [isBookmarkedTab, allApiItems, checkIsBookmarked]);
 
-  const displayCount = isBookmarkedTab ? bookmarkCount : totalCount;
+  // Reset when tab changes
+  useEffect(() => {
+    setLoadedPages(new Map());
+    setCurrentStartPage(0);
+    setSelectedMedia(null);
+    queryClient.invalidateQueries({ queryKey: ['media-initial'] });
+  }, [activeTab, queryClient]);
 
   function handleTabChange(tab: MediaTab) {
     setActiveTab(tab);
-    setSelectedMedia(null);
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header with Total Count */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-text-primary">Media Gallery</h2>
-          <p className="mt-1 text-sm text-text-secondary">
-            Browse images, videos, and other media files
-          </p>
-        </div>
-        {/* Total Count Badge */}
-        <div className="flex items-center gap-4">
-          {bookmarkCount > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-accent-amber/30 bg-accent-amber/10 px-3 py-2">
-              <Bookmark className="h-4 w-4 text-accent-amber" />
-              <span className="text-sm font-medium text-accent-amber">
-                {bookmarkCount.toLocaleString()} Bookmarked
-              </span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 rounded-lg border border-accent-blue/30 bg-accent-blue/10 px-4 py-2">
-            <ImageIcon className="h-5 w-5 text-accent-blue" />
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-accent-blue">
-                {totalCount.toLocaleString()}
-              </span>
-              <span className="text-xs text-accent-blue/70">Total Media Files</span>
+    <div className="flex flex-col">
+      {/* Sticky Header and Filter Bar */}
+      <div className="sticky top-[-1rem] z-20 bg-[#12121A] pb-4 pt-6 -mx-4 -mt-4 px-4 border-b border-border-subtle shadow-lg">
+        {/* Header with Total Count */}
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-text-primary">Media Gallery</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              Browse images, videos, and other media files
+            </p>
+          </div>
+          {/* Total Count Badge */}
+          <div className="flex items-center gap-4">
+            {bookmarkCount > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-accent-amber/30 bg-accent-amber/10 px-3 py-2">
+                <Bookmark className="h-4 w-4 text-accent-amber" />
+                <span className="text-sm font-medium text-accent-amber">
+                  {bookmarkCount.toLocaleString()} Bookmarked
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 rounded-lg border border-accent-blue/30 bg-accent-blue/10 px-4 py-2">
+              <ImageIcon className="h-5 w-5 text-accent-blue" />
+              <div className="flex flex-col">
+                <span className="text-lg font-bold text-accent-blue">
+                  {totalCount.toLocaleString()}
+                </span>
+                <span className="text-xs text-accent-blue/70">Total Media Files</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-4">
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center gap-4">
         {/* Media Type Tabs */}
         <div className="flex items-center rounded-lg border border-border-subtle bg-surface-raised p-0.5">
           {TABS.map(({ key, label, icon: Icon }) => (
@@ -274,10 +411,57 @@ export function MediaPage() {
             </button>
           ))}
         </div>
+
+        {/* Go to ID */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border border-border-subtle bg-surface-raised">
+            <div className="flex items-center gap-1.5 px-2 text-text-tertiary">
+              <Search className="h-3.5 w-3.5" />
+              <span className="text-xs">ID:</span>
+            </div>
+            <input
+              type="text"
+              value={goToIdInput}
+              onChange={(e) => {
+                setGoToIdInput(e.target.value);
+                setGoToIdError(null);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && handleGoToId()}
+              placeholder="Enter media ID"
+              className="w-28 bg-transparent px-2 py-1.5 text-xs text-text-primary placeholder:text-text-disabled focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleGoToId}
+              className="flex items-center justify-center h-full px-2 text-text-tertiary hover:text-accent-blue transition-colors border-l border-border-subtle"
+              title="Go to media ID"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {goToIdError && (
+            <span className="text-xs text-accent-red">{goToIdError}</span>
+          )}
+          {isJumping && (
+            <div className="flex items-center gap-2 rounded-lg border border-accent-blue/30 bg-accent-blue/10 px-3 py-1.5">
+              <Loader2 className="h-4 w-4 animate-spin text-accent-blue" />
+              <span className="text-xs text-accent-blue font-medium">
+                Jumping to ID...
+              </span>
+            </div>
+          )}
+          {/* Page range indicator */}
+          {sortedPageNumbers.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+              <span>Pages {minLoadedPage + 1}-{maxLoadedPage + 1} of {totalInfo.totalPages}</span>
+            </div>
+          )}
+        </div>
+      </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 mt-4">
         {/* Gallery Grid */}
         <div className={cn('flex-1', selectedMedia ? 'w-[65%]' : 'w-full')}>
           {isLoading && <LoadingSpinner className="py-24" />}
@@ -310,39 +494,59 @@ export function MediaPage() {
 
           {!isLoading && !isError && allItems.length > 0 && (
             <>
+              {/* Load Previous Trigger (Top) */}
+              <div ref={loadMoreTopRef} className="flex justify-center py-4">
+                {hasPreviousPage && (
+                  <button
+                    onClick={loadPreviousPage}
+                    disabled={isLoadingPage}
+                    className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-raised px-4 py-2 text-sm text-text-secondary hover:bg-surface-overlay disabled:opacity-50"
+                  >
+                    {isLoadingPage ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ChevronUp className="h-4 w-4" />
+                    )}
+                    Load Previous (Page {minLoadedPage})
+                  </button>
+                )}
+              </div>
+
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
-                {allItems.map((media) => (
+                {allItems.map((item) => (
                   <MediaCard
-                    key={media.mediaFileId}
-                    media={media}
-                    isSelected={selectedMedia?.mediaFileId === media.mediaFileId}
-                    isBookmarked={isBookmarked(media.mediaFileId)}
-                    onSelect={() => setSelectedMedia(media)}
-                    onDoubleClick={() => handleOpenLightbox(media)}
-                    onToggleBookmark={() => toggleBookmark(media)}
+                    key={item.media.mediaFileId}
+                    media={item.media}
+                    index={item.globalIndex}
+                    isSelected={selectedMedia?.mediaFileId === item.media.mediaFileId}
+                    isBookmarked={isBookmarked(item.media.mediaFileId)}
+                    onSelect={() => setSelectedMedia(item.media)}
+                    onDoubleClick={() => handleOpenLightbox(item.media)}
+                    onToggleBookmark={() => toggleBookmark(item.media)}
                   />
                 ))}
               </div>
 
-              {/* Load More Trigger */}
-              <div ref={loadMoreRef} className="flex justify-center py-8">
+              {/* Load Next Trigger (Bottom) */}
+              <div ref={loadMoreBottomRef} className="flex justify-center py-8">
                 {isBookmarkedTab ? (
                   <p className="text-xs text-text-disabled">
                     {allItems.length > 0
                       ? `Showing ${allItems.length} of ${bookmarkCount} bookmarked items`
                       : 'No bookmarked items'}
                   </p>
-                ) : isFetchingNextPage ? (
+                ) : isLoadingPage ? (
                   <div className="flex items-center gap-2 text-sm text-text-secondary">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Loading more...
                   </div>
                 ) : hasNextPage ? (
                   <button
-                    onClick={() => fetchNextPage()}
-                    className="rounded-md border border-border-subtle bg-surface-raised px-4 py-2 text-sm text-text-secondary hover:bg-surface-overlay"
+                    onClick={loadNextPage}
+                    className="flex items-center gap-2 rounded-md border border-border-subtle bg-surface-raised px-4 py-2 text-sm text-text-secondary hover:bg-surface-overlay"
                   >
-                    Load More
+                    <ChevronDown className="h-4 w-4" />
+                    Load More (Page {maxLoadedPage + 2})
                   </button>
                 ) : allItems.length > 0 ? (
                   <p className="text-xs text-text-disabled">
@@ -378,6 +582,7 @@ export function MediaPage() {
 
 function MediaCard({
   media,
+  index,
   isSelected,
   isBookmarked,
   onSelect,
@@ -385,6 +590,7 @@ function MediaCard({
   onToggleBookmark,
 }: {
   media: MediaFile;
+  index: number;
   isSelected: boolean;
   isBookmarked: boolean;
   onSelect: () => void;
@@ -403,6 +609,7 @@ function MediaCard({
 
   return (
     <button
+      id={`media-card-${media.mediaFileId}`}
       type="button"
       onClick={onSelect}
       onDoubleClick={onDoubleClick}
@@ -413,6 +620,12 @@ function MediaCard({
           : 'border-border-subtle bg-surface-raised hover:border-border-default'
       )}
     >
+      {/* Index Badge */}
+      <div className="absolute top-1 left-1 z-10 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        <span className="text-text-disabled">#{index}</span>
+        <span className="text-accent-blue">ID:{media.mediaFileId}</span>
+      </div>
+
       {/* Bookmark Button */}
       <div
         role="button"
@@ -490,7 +703,7 @@ function MediaDetailSidebar({
   const imageUrl = `/api/media/${media.mediaFileId}/file`;
 
   return (
-    <div className="w-[35%] shrink-0 overflow-y-auto rounded-lg border border-border-subtle bg-surface-raised max-h-[calc(100vh-200px)] sticky top-4">
+    <div className="w-[35%] shrink-0 overflow-y-auto rounded-lg border border-border-subtle bg-surface-raised max-h-[calc(100vh-220px)] sticky top-32">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border-subtle p-4">
         <h3 className="text-sm font-semibold text-text-primary">Media Details</h3>
@@ -560,6 +773,9 @@ function MediaDetailSidebar({
 
       {/* File Info */}
       <div className="border-b border-border-subtle p-4">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-mono text-accent-blue">ID: {media.mediaFileId}</span>
+        </div>
         <h4 className="text-sm font-medium text-text-primary break-words">
           {media.fileName}
         </h4>
@@ -855,11 +1071,14 @@ function ImageLightbox({
       {/* File Name */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 rounded-lg bg-surface-raised/90 backdrop-blur-sm border border-border-subtle px-4 py-2">
         <p className="text-sm text-text-primary font-medium">{media.fileName}</p>
-        {media.widthPixels && media.heightPixels && (
-          <p className="text-xs text-text-tertiary text-center">
-            {media.widthPixels} x {media.heightPixels} px
-          </p>
-        )}
+        <div className="flex items-center justify-center gap-3 mt-1">
+          <span className="text-xs font-mono text-accent-blue">ID: {media.mediaFileId}</span>
+          {media.widthPixels && media.heightPixels && (
+            <span className="text-xs text-text-tertiary">
+              {media.widthPixels} x {media.heightPixels} px
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
