@@ -9,4 +9,6 @@ public class SearchResultDto
     public double RelevanceScore { get; set; }
     public string? DocumentDate { get; set; }
     public string? DocumentType { get; set; }
+    public int? PageCount { get; set; }
+    public bool IsRedacted { get; set; }
 }

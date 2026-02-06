@@ -50,34 +50,63 @@ public partial class Fts5SearchProvider : ISearchService
         SqliteConnection connection, SearchRequest request, string sanitizedQuery,
         CancellationToken cancellationToken)
     {
-        var countSql = @"
+        // Build filter conditions
+        var filterConditions = new List<string>();
+        var parameters = new DynamicParameters();
+        parameters.Add("Query", sanitizedQuery);
+        parameters.Add("PageSize", request.PageSize);
+        parameters.Add("Offset", request.Page * request.PageSize);
+
+        if (!string.IsNullOrEmpty(request.DateFrom))
+        {
+            filterConditions.Add("d.document_date >= @DateFrom");
+            parameters.Add("DateFrom", request.DateFrom);
+        }
+        if (!string.IsNullOrEmpty(request.DateTo))
+        {
+            filterConditions.Add("d.document_date <= @DateTo");
+            parameters.Add("DateTo", request.DateTo);
+        }
+        if (request.DocumentTypes?.Any() == true)
+        {
+            filterConditions.Add("d.document_type IN @DocumentTypes");
+            parameters.Add("DocumentTypes", request.DocumentTypes);
+        }
+
+        var filterClause = filterConditions.Count > 0
+            ? " AND " + string.Join(" AND ", filterConditions)
+            : "";
+
+        var countSql = $@"
             SELECT COUNT(*)
             FROM documents_fts
-            WHERE documents_fts MATCH @Query";
+            JOIN documents d ON d.document_id = documents_fts.rowid
+            WHERE documents_fts MATCH @Query{filterClause}";
 
-        var totalCount = await connection.QuerySingleAsync<int>(countSql, new { Query = sanitizedQuery });
+        var totalCount = await connection.QuerySingleAsync<int>(countSql, parameters);
 
-        var searchSql = @"
+        // Use snippet on cleaned_text (column 3) if available, otherwise full_text (column 2)
+        var searchSql = $@"
             SELECT
                 d.document_id AS DocumentId,
                 d.efta_number AS EftaNumber,
                 d.document_title AS Title,
-                snippet(documents_fts, 0, '<mark>', '</mark>', '...', 64) AS Snippet,
+                COALESCE(
+                    snippet(documents_fts, 3, '<mark>', '</mark>', '...', 64),
+                    snippet(documents_fts, 2, '<mark>', '</mark>', '...', 64)
+                ) AS Snippet,
                 rank AS RelevanceScore,
                 d.document_date AS DocumentDate,
-                d.document_type AS DocumentType
+                d.document_type AS DocumentType,
+                d.page_count AS PageCount,
+                d.is_redacted AS IsRedacted
             FROM documents_fts
             JOIN documents d ON d.document_id = documents_fts.rowid
-            WHERE documents_fts MATCH @Query
+            WHERE documents_fts MATCH @Query{filterClause}
             ORDER BY rank
             LIMIT @PageSize OFFSET @Offset";
 
-        var results = await connection.QueryAsync<SearchResult>(searchSql, new
-        {
-            Query = sanitizedQuery,
-            PageSize = request.PageSize,
-            Offset = request.Page * request.PageSize
-        });
+        var results = await connection.QueryAsync<SearchResult>(searchSql, parameters);
 
         return new PagedResult<SearchResult>
         {

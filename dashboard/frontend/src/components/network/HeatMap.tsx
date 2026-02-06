@@ -140,8 +140,9 @@ function packCircles(
         }
       }
 
-      // Check bounds
-      if (!collision && x - radius >= 0 && x + radius <= width && y - radius >= 0 && y + radius <= height) {
+      // Check bounds (allow circles to overflow edges by up to half their radius)
+      const overflow = radius * 0.5;
+      if (!collision && x - radius >= -overflow && x + radius <= width + overflow && y - radius >= -overflow && y + radius <= height + overflow) {
         circles.push({ entity, x, y, radius, value });
         placed = true;
       }
@@ -153,9 +154,9 @@ function packCircles(
       }
     }
 
-    // Fallback: place at center if spiral fails
+    // Skip circles that can't be placed rather than stacking at center
     if (!placed) {
-      circles.push({ entity, x: centerX, y: centerY, radius: minRadius, value });
+      continue;
     }
   }
 

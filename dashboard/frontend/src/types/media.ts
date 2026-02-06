@@ -14,4 +14,5 @@ export interface MediaFile {
   caption?: string;
   isExplicit: boolean;
   isSensitive: boolean;
+  sourceDocumentId?: number;
 }
