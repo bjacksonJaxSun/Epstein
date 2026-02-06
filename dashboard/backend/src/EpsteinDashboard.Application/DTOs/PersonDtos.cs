@@ -18,7 +18,29 @@ public class PersonListDto
     public string FullName { get; set; } = string.Empty;
     public string? PrimaryRole { get; set; }
     public string? Occupation { get; set; }
+    public string? Nationality { get; set; }
     public string? ConfidenceLevel { get; set; }
+    public int DocumentCount { get; set; }
+    public int EventCount { get; set; }
+    public int RelationshipCount { get; set; }
+    public int FinancialCount { get; set; }
+    public int TotalMentions { get; set; }
+    public string? EpsteinRelationship { get; set; }
+}
+
+public class DuplicateGroupDto
+{
+    public string CanonicalName { get; set; } = string.Empty;
+    public List<PersonListDto> Variants { get; set; } = new();
+    public int TotalDocuments { get; set; }
+    public int TotalEvents { get; set; }
+    public int TotalRelationships { get; set; }
+}
+
+public class MergePersonsRequest
+{
+    public long PrimaryPersonId { get; set; }
+    public List<long> MergePersonIds { get; set; } = new();
 }
 
 public class PersonDetailDto

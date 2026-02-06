@@ -34,25 +34,30 @@ public class PeopleController : ControllerBase
         [FromQuery] int pageSize = 50,
         [FromQuery] string? search = null,
         [FromQuery] string? sortBy = null,
-        [FromQuery] string? sortDirection = "asc",
+        [FromQuery] string? sortDirection = "desc",
         CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrEmpty(search))
-        {
-            var searchResult = await _repository.SearchByNameAsync(search, page, pageSize, cancellationToken);
-            return Ok(new PagedResult<PersonListDto>
-            {
-                Items = _mapper.Map<IReadOnlyList<PersonListDto>>(searchResult.Items),
-                TotalCount = searchResult.TotalCount,
-                Page = searchResult.Page,
-                PageSize = searchResult.PageSize
-            });
-        }
+        var result = await _repository.GetPagedWithCountsAsync(page, pageSize, search, sortBy, sortDirection, cancellationToken);
 
-        var result = await _repository.GetPagedAsync(page, pageSize, sortBy, sortDirection, cancellationToken);
+        var dtos = result.Items.Select(r => new PersonListDto
+        {
+            PersonId = r.Person.PersonId,
+            FullName = r.Person.FullName,
+            PrimaryRole = r.Person.PrimaryRole,
+            Occupation = r.Person.Occupation,
+            Nationality = r.Person.Nationality,
+            ConfidenceLevel = r.Person.ConfidenceLevel,
+            DocumentCount = r.DocumentCount,
+            EventCount = r.EventCount,
+            RelationshipCount = r.RelationshipCount,
+            FinancialCount = r.FinancialCount,
+            TotalMentions = r.TotalMentions,
+            EpsteinRelationship = r.EpsteinRelationship
+        }).ToList();
+
         return Ok(new PagedResult<PersonListDto>
         {
-            Items = _mapper.Map<IReadOnlyList<PersonListDto>>(result.Items),
+            Items = dtos,
             TotalCount = result.TotalCount,
             Page = result.Page,
             PageSize = result.PageSize
@@ -165,5 +170,42 @@ public class PeopleController : ControllerBase
         }).ToList();
 
         return Ok(dtos);
+    }
+
+    [HttpGet("duplicates")]
+    public async Task<ActionResult<IReadOnlyList<DuplicateGroupDto>>> GetDuplicates(
+        CancellationToken cancellationToken = default)
+    {
+        var duplicates = await _repository.FindDuplicatesAsync(0.8, cancellationToken);
+
+        var dtos = duplicates.Select(g => new DuplicateGroupDto
+        {
+            CanonicalName = g.CanonicalName,
+            Variants = g.Variants.Select(p => new PersonListDto
+            {
+                PersonId = p.PersonId,
+                FullName = p.FullName,
+                PrimaryRole = p.PrimaryRole,
+                Occupation = p.Occupation,
+                Nationality = p.Nationality,
+                ConfidenceLevel = p.ConfidenceLevel
+            }).ToList()
+        }).ToList();
+
+        return Ok(dtos);
+    }
+
+    [HttpPost("merge")]
+    public async Task<ActionResult> MergePersons(
+        [FromBody] MergePersonsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.PrimaryPersonId <= 0 || request.MergePersonIds.Count == 0)
+        {
+            return BadRequest("Invalid merge request");
+        }
+
+        await _repository.MergePersonsAsync(request.PrimaryPersonId, request.MergePersonIds, cancellationToken);
+        return Ok(new { message = $"Merged {request.MergePersonIds.Count} persons into {request.PrimaryPersonId}" });
     }
 }

@@ -17,3 +17,21 @@ public class LocationDto
     public string? CreatedAt { get; set; }
     public string? UpdatedAt { get; set; }
 }
+
+public class LocationListDto
+{
+    public long LocationId { get; set; }
+    public string LocationName { get; set; } = string.Empty;
+    public string? LocationType { get; set; }
+    public string? City { get; set; }
+    public string? StateProvince { get; set; }
+    public string? Country { get; set; }
+    public double? GpsLatitude { get; set; }
+    public double? GpsLongitude { get; set; }
+    public string? Owner { get; set; }
+    public string? Description { get; set; }
+    public int EventCount { get; set; }
+    public int MediaCount { get; set; }
+    public int EvidenceCount { get; set; }
+    public int TotalActivity { get; set; }
+}

@@ -1,4 +1,4 @@
-import { apiGet } from '../client';
+import { apiGet, apiPost } from '../client';
 import type {
   Person,
   PersonDetail,
@@ -6,6 +6,7 @@ import type {
   Relationship,
   NetworkGraph,
   EntityFrequency,
+  DuplicateGroup,
 } from '@/types';
 
 // Helper to safely parse JSON strings from the backend
@@ -36,7 +37,7 @@ function transformPersonDetail(data: Record<string, unknown>): PersonDetail {
 }
 
 export const peopleApi = {
-  list: (params?: { page?: number; pageSize?: number; search?: string }) =>
+  list: (params?: { page?: number; pageSize?: number; search?: string; sortBy?: string; sortDirection?: string }) =>
     apiGet<PaginatedResponse<Person>>('/people', {
       ...params,
       page: params?.page != null ? params.page - 1 : undefined,
@@ -51,4 +52,8 @@ export const peopleApi = {
     apiGet<NetworkGraph>(`/people/${id}/network`, { depth }),
   getFrequencies: (limit = 500) =>
     apiGet<EntityFrequency[]>('/people/frequencies', { limit }),
+  getDuplicates: () =>
+    apiGet<DuplicateGroup[]>('/people/duplicates'),
+  mergePersons: (primaryPersonId: number, mergePersonIds: number[]) =>
+    apiPost<{ message: string }>('/people/merge', { primaryPersonId, mergePersonIds }),
 };

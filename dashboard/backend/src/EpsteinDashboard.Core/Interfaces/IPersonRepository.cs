@@ -13,4 +13,7 @@ public interface IPersonRepository : IRepository<Person>
     Task<IReadOnlyList<FinancialTransaction>> GetFinancialsForPersonAsync(long personId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MediaFile>> GetMediaForPersonAsync(long personId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<(Person Person, int DocumentCount, int EventCount, int RelationshipCount, int FinancialCount, decimal FinancialTotal, int MediaCount)>> GetAllWithFrequenciesAsync(int limit = 500, CancellationToken cancellationToken = default);
+    Task<PagedResult<(Person Person, int DocumentCount, int EventCount, int RelationshipCount, int FinancialCount, int TotalMentions, string? EpsteinRelationship)>> GetPagedWithCountsAsync(int page, int pageSize, string? search = null, string? sortBy = null, string? sortDirection = "asc", CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<(string CanonicalName, List<Person> Variants)>> FindDuplicatesAsync(double similarityThreshold = 0.8, CancellationToken cancellationToken = default);
+    Task MergePersonsAsync(long primaryPersonId, IEnumerable<long> mergePersonIds, CancellationToken cancellationToken = default);
 }

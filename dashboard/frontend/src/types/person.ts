@@ -16,6 +16,14 @@ export interface Person {
   notes?: string;
   createdAt: string;
   updatedAt?: string;
+  // Frequency counts
+  documentCount?: number;
+  eventCount?: number;
+  relationshipCount?: number;
+  financialCount?: number;
+  totalMentions?: number;
+  // Epstein relationship
+  epsteinRelationship?: string;
 }
 
 export interface PersonDetail extends Person {
@@ -38,4 +46,12 @@ export interface EntityFrequency {
   financialTotal: number;
   mediaCount: number;
   totalMentions: number;
+}
+
+export interface DuplicateGroup {
+  canonicalName: string;
+  variants: Person[];
+  totalDocuments?: number;
+  totalEvents?: number;
+  totalRelationships?: number;
 }

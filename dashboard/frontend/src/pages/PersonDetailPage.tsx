@@ -395,9 +395,15 @@ function DocumentsTab({ personId }: { personId: number }) {
       key: 'documentTitle',
       header: 'Title',
       render: (doc) => (
-        <span className="text-text-primary">
+        <a
+          href={`/api/documents/${doc.documentId}/file`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="font-medium text-accent-blue hover:underline"
+        >
           {doc.documentTitle ?? doc.subject ?? '--'}
-        </span>
+        </a>
       ),
     },
     {

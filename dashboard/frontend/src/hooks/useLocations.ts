@@ -1,15 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { locationsApi } from '@/api/endpoints/locations';
 import type { PaginatedResponse } from '@/types';
-import type { Location } from '@/api/endpoints/locations';
+import type { Location, LocationDocument } from '@/api/endpoints/locations';
 
-export type { Location } from '@/api/endpoints/locations';
+export type { Location, LocationDocument } from '@/api/endpoints/locations';
 
 export function useLocations(params?: {
   page?: number;
   pageSize?: number;
   search?: string;
   locationType?: string;
+  country?: string;
+  sortBy?: string;
+  sortDirection?: string;
 }) {
   return useQuery<PaginatedResponse<Location>>({
     queryKey: ['locations', params],
@@ -22,6 +25,28 @@ export function useLocationDetail(id: number) {
   return useQuery<Location>({
     queryKey: ['locations', id],
     queryFn: () => locationsApi.getById(id),
+    enabled: id > 0,
+  });
+}
+
+export function useLocationCountries() {
+  return useQuery<string[]>({
+    queryKey: ['locations', 'countries'],
+    queryFn: () => locationsApi.getCountries(),
+  });
+}
+
+export function useLocationTypesList() {
+  return useQuery<string[]>({
+    queryKey: ['locations', 'types'],
+    queryFn: () => locationsApi.getTypes(),
+  });
+}
+
+export function useLocationDocuments(id: number) {
+  return useQuery<LocationDocument[]>({
+    queryKey: ['locations', id, 'documents'],
+    queryFn: () => locationsApi.getDocuments(id),
     enabled: id > 0,
   });
 }
@@ -40,9 +65,13 @@ export function useGeoLocatedCount(locations: Location[]): {
   total: number;
   geoLocated: number;
   countries: number;
+  totalEvents: number;
+  totalMedia: number;
 } {
   const countries = new Set<string>();
   let geoLocated = 0;
+  let totalEvents = 0;
+  let totalMedia = 0;
 
   for (const loc of locations) {
     if (loc.gpsLatitude != null && loc.gpsLongitude != null) {
@@ -51,11 +80,15 @@ export function useGeoLocatedCount(locations: Location[]): {
     if (loc.country) {
       countries.add(loc.country);
     }
+    totalEvents += loc.eventCount ?? 0;
+    totalMedia += loc.mediaCount ?? 0;
   }
 
   return {
     total: locations.length,
     geoLocated,
     countries: countries.size,
+    totalEvents,
+    totalMedia,
   };
 }

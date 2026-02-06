@@ -1,5 +1,5 @@
 export type { PaginatedResponse, ApiError } from './api';
-export type { Person, PersonDetail, EntityFrequency } from './person';
+export type { Person, PersonDetail, EntityFrequency, DuplicateGroup } from './person';
 export type { Document } from './document';
 export type { TimelineEvent } from './event';
 export type { Relationship } from './relationship';
