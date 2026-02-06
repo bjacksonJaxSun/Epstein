@@ -10,6 +10,6 @@ export type {
   SankeyLink,
 } from './financial';
 export type { NetworkGraph, NetworkNode, NetworkEdge } from './network';
-export type { SearchResult, EntitySearchResult } from './search';
+export type { SearchResult, EntitySearchResult, ChunkSearchResult, ChunkSearchStats } from './search';
 export type { MediaFile } from './media';
 export type { DashboardStats } from './dashboard';

@@ -38,6 +38,7 @@ public static class DependencyInjection
 
         // Search and graph services
         services.AddScoped<ISearchService, Fts5SearchProvider>();
+        services.AddScoped<IChunkSearchService, ChunkSearchProvider>();
         services.AddScoped<IGraphQueryService, GraphQueryService>();
 
         return services;

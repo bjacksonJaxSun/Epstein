@@ -8,6 +8,7 @@ import {
   MapPin,
   Calendar,
   FileText,
+  Image,
   X,
   Plus,
   Tag,
@@ -25,6 +26,7 @@ const entityIcons: Record<string, typeof User> = {
   location: MapPin,
   event: Calendar,
   document: FileText,
+  media: Image,
 };
 
 const entityColors: Record<string, string> = {
@@ -33,6 +35,7 @@ const entityColors: Record<string, string> = {
   location: 'text-entity-location bg-entity-location/15',
   event: 'text-entity-event bg-entity-event/15',
   document: 'text-entity-document bg-entity-document/15',
+  media: 'text-accent-purple bg-accent-purple/15',
 };
 
 const entityBandColors: Record<string, string> = {
@@ -41,10 +44,11 @@ const entityBandColors: Record<string, string> = {
   location: 'bg-entity-location',
   event: 'bg-entity-event',
   document: 'bg-entity-document',
+  media: 'bg-accent-purple',
 };
 
 type SortMode = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc';
-type EntityTypeFilter = 'all' | 'person' | 'organization' | 'document' | 'event' | 'location';
+type EntityTypeFilter = 'all' | 'person' | 'organization' | 'document' | 'event' | 'location' | 'media';
 
 const typeFilters: { key: EntityTypeFilter; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -53,6 +57,7 @@ const typeFilters: { key: EntityTypeFilter; label: string }[] = [
   { key: 'document', label: 'Docs' },
   { key: 'event', label: 'Events' },
   { key: 'location', label: 'Locations' },
+  { key: 'media', label: 'Media' },
 ];
 
 function BookmarkCard({
@@ -74,14 +79,35 @@ function BookmarkCard({
   const [notesValue, setNotesValue] = useState(bookmark.notes ?? '');
   const [tagInput, setTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   const Icon = entityIcons[bookmark.entityType] ?? FileText;
   const bandColor = entityBandColors[bookmark.entityType] ?? entityBandColors.document;
+  const isMedia = bookmark.entityType === 'media';
+  const isImageMedia = isMedia && bookmark.tags.includes('image');
+  const mediaUrl = isMedia ? `/api/media/${bookmark.entityId}/file` : null;
 
   return (
-    <div className="rounded-lg border border-border-subtle bg-surface-raised transition-colors hover:border-border-default">
-      {/* Color band */}
-      <div className={cn('h-1 rounded-t-lg', bandColor)} />
+    <div className="rounded-lg border border-border-subtle bg-surface-raised transition-colors hover:border-border-default overflow-hidden">
+      {/* Image thumbnail for media bookmarks */}
+      {isImageMedia && mediaUrl && !imgError ? (
+        <button
+          type="button"
+          onClick={() => onNavigate(bookmark)}
+          className="w-full aspect-video bg-surface-sunken overflow-hidden"
+        >
+          <img
+            src={mediaUrl}
+            alt={bookmark.label}
+            className="w-full h-full object-cover hover:scale-105 transition-transform"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        </button>
+      ) : (
+        /* Color band for non-media bookmarks */
+        <div className={cn('h-1', bandColor)} />
+      )}
 
       <div className="p-3">
         {/* Header */}
@@ -303,6 +329,8 @@ export function BookmarksPage() {
         navigate('/timeline');
       } else if (bookmark.entityType === 'location') {
         navigate('/locations');
+      } else if (bookmark.entityType === 'media') {
+        navigate('/media');
       }
     },
     [navigate]

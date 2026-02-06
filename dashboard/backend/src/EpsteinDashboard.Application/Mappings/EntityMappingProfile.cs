@@ -2,6 +2,7 @@ using System.Text.Json;
 using AutoMapper;
 using EpsteinDashboard.Application.DTOs;
 using EpsteinDashboard.Core.Entities;
+using EpsteinDashboard.Core.Interfaces;
 using EpsteinDashboard.Core.Models;
 
 namespace EpsteinDashboard.Application.Mappings;
@@ -103,6 +104,8 @@ public class EntityMappingProfile : Profile
 
         // Search
         CreateMap<SearchResult, SearchResultDto>();
+        CreateMap<ChunkSearchResult, ChunkSearchResultDto>();
+        CreateMap<ChunkSearchStats, ChunkSearchStatsDto>();
 
         // Network
         CreateMap<NetworkGraph, NetworkGraphDto>();
