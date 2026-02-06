@@ -13,7 +13,9 @@ import {
 } from 'lucide-react';
 import { useSelectionStore } from '@/stores/useSelectionStore';
 import { useBookmarkStore } from '@/stores/useBookmarkStore';
+import { useQuery } from '@tanstack/react-query';
 import { usePersonDetail, usePersonDocuments } from '@/hooks';
+import { eventsApi } from '@/api/endpoints/events';
 import { ConfidenceBadge, LoadingSpinner } from '@/components/shared';
 import { cn } from '@/lib/utils';
 
@@ -185,6 +187,106 @@ function PersonContextContent({ personId }: { personId: number }) {
   );
 }
 
+function EventContextContent({ eventId }: { eventId: number }) {
+  const { data: event, isLoading, isError } = useQuery({
+    queryKey: ['event', eventId],
+    queryFn: () => eventsApi.getById(eventId),
+    enabled: eventId > 0,
+  });
+
+  if (isLoading) {
+    return <LoadingSpinner className="py-12" />;
+  }
+
+  if (isError || !event) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-text-disabled">
+        Unable to load event details.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Event type badge */}
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center rounded-sm border border-accent-purple/30 bg-accent-purple/15 px-2 py-0.5 text-xs font-medium text-accent-purple">
+          {event.eventType?.replace(/_/g, ' ') ?? 'Unknown'}
+        </span>
+        {event.confidenceLevel && (
+          <ConfidenceBadge level={event.confidenceLevel} />
+        )}
+      </div>
+
+      {/* Title/Description */}
+      <div className="flex flex-col gap-1">
+        <h3 className="text-lg font-semibold text-text-primary leading-snug">
+          {event.title ?? (event.description ? (event.description.length > 80 ? event.description.substring(0, 77) + '...' : event.description) : 'Untitled Event')}
+        </h3>
+      </div>
+
+      {/* Date info */}
+      <div className="flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-base p-3">
+        {event.eventDate && (
+          <InfoRow label="Date" value={event.eventDate} />
+        )}
+        {event.eventTime && (
+          <InfoRow label="Time" value={event.eventTime} />
+        )}
+        {event.endDate && (
+          <InfoRow label="End Date" value={event.endDate} />
+        )}
+        {event.locationName && (
+          <InfoRow label="Location" value={event.locationName} />
+        )}
+      </div>
+
+      {/* Full Description */}
+      {event.description && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium uppercase tracking-wider text-text-tertiary">
+            Description
+          </span>
+          <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto rounded-lg border border-border-subtle bg-surface-base p-3">
+            {event.description}
+          </p>
+        </div>
+      )}
+
+      {/* Participants */}
+      {event.participantNames && event.participantNames.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium uppercase tracking-wider text-text-tertiary">
+            Participants ({event.participantNames.length})
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {event.participantNames.map((name) => (
+              <span
+                key={name}
+                className="inline-flex items-center rounded-md border border-border-subtle bg-surface-overlay px-2 py-0.5 text-xs text-text-secondary"
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Notes */}
+      {event.notes && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium uppercase tracking-wider text-text-tertiary">
+            Notes
+          </span>
+          <p className="text-sm text-text-tertiary">
+            {event.notes}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GenericContextContent({
   entityId,
   entityType,
@@ -278,6 +380,8 @@ export function ContextPanel() {
 
   const isPerson =
     selectedEntityType === 'person' && selectedEntityId != null;
+  const isEvent =
+    selectedEntityType === 'event' && selectedEntityId != null;
 
   return (
     <aside
@@ -336,6 +440,8 @@ export function ContextPanel() {
       <div className="flex-1 overflow-y-auto p-4">
         {isPerson ? (
           <PersonContextContent personId={Number(selectedEntityId)} />
+        ) : isEvent ? (
+          <EventContextContent eventId={Number(selectedEntityId)} />
         ) : (
           <GenericContextContent
             entityId={selectedEntityId ?? ''}

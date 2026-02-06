@@ -539,7 +539,7 @@ function EventCard({
                 )}
               </div>
               <h4 className="text-sm font-medium text-text-primary">
-                {event.title ?? 'Untitled Event'}
+                {event.title ?? (event.description ? (event.description.length > 100 ? event.description.substring(0, 97) + '...' : event.description) : 'Untitled Event')}
               </h4>
               {event.locationName && (
                 <div className="mt-1 flex items-center gap-1 text-xs text-text-secondary">

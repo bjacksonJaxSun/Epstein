@@ -247,6 +247,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
             "documentcount" => "document_count",
             "eventcount" => "event_count",
             "relationshipcount" => "relationship_count",
+            "financialcount" => "financial_count",
             "totalmentions" => "total_mentions",
             "fullname" => "p.full_name",
             "epsteinrelationship" => "epstein_relationship",

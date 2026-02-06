@@ -67,12 +67,35 @@ function escapeHtml(str: string): string {
   return div.innerHTML;
 }
 
+function getEventLabel(event: TimelineEvent): string {
+  // Use title if available
+  if (event.title) return event.title;
+
+  // Otherwise use first 60 chars of description
+  if (event.description) {
+    const desc = event.description.trim();
+    if (desc.length > 60) {
+      return desc.substring(0, 57) + '...';
+    }
+    return desc;
+  }
+
+  // Last resort: use event type
+  return event.eventType.replace(/_/g, ' ');
+}
+
+function isValidDate(dateStr: string): boolean {
+  // Filter out obviously bad dates (OCR errors)
+  const year = parseInt(dateStr.substring(0, 4), 10);
+  return year >= 1980 && year <= 2025;
+}
+
 function transformEvents(events: TimelineEvent[]): TimelineItem[] {
   return events
-    .filter((e) => e.eventDate)
+    .filter((e) => e.eventDate && isValidDate(e.eventDate))
     .map((e) => ({
       id: e.eventId,
-      content: e.title ?? e.eventType.replace(/_/g, ' '),
+      content: getEventLabel(e),
       start: e.eventDate,
       end: e.endDate ?? undefined,
       type: e.endDate ? ('range' as const) : ('point' as const),
@@ -114,8 +137,8 @@ export function EventTimeline({
 
     const options = {
       height: '400px',
-      start: new Date(2000, 0, 1),
-      end: new Date(2025, 0, 1),
+      start: new Date(2005, 0, 1),
+      end: new Date(2022, 0, 1),
       zoomMin: 1000 * 60 * 60 * 24 * 30,
       zoomMax: 1000 * 60 * 60 * 24 * 365 * 30,
       orientation: { axis: 'top' as const },
