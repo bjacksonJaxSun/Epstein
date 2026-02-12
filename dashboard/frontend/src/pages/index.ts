@@ -16,3 +16,4 @@ export { BookmarksPage } from './BookmarksPage';
 export { AIInsightsPage } from './AIInsightsPage';
 export { SearchPage } from './SearchPage';
 export { SettingsPage } from './SettingsPage';
+export { VisionAnalysisPage } from './VisionAnalysisPage';

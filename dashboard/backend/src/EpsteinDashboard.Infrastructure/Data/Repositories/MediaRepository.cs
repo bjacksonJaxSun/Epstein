@@ -25,6 +25,7 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
     public async Task<PagedResult<MediaFile>> GetFilteredAsync(
         int page, int pageSize, string? mediaType = null,
         string? sortBy = null, string? sortDirection = null,
+        bool excludeDocumentScans = false,
         CancellationToken cancellationToken = default)
     {
         var query = DbSet.AsNoTracking().AsQueryable();
@@ -32,10 +33,16 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
         if (!string.IsNullOrEmpty(mediaType))
             query = query.Where(m => m.MediaType == mediaType);
 
+        // Filter out document scans (images extracted from PDFs)
+        if (excludeDocumentScans)
+            query = query.Where(m => m.Caption == null || !m.Caption.StartsWith("Extracted from EFTA"));
+
         var totalCount = await query.CountAsync(cancellationToken);
 
         if (!string.IsNullOrEmpty(sortBy))
             query = ApplySort(query, sortBy, sortDirection);
+        else
+            query = query.OrderBy(m => m.MediaFileId);
 
         var items = await query
             .Skip(page * pageSize)
@@ -58,12 +65,16 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<MediaPositionResult?> GetMediaPositionAsync(long id, int pageSize, string? mediaType = null, CancellationToken cancellationToken = default)
+    public async Task<MediaPositionResult?> GetMediaPositionAsync(long id, int pageSize, string? mediaType = null, bool excludeDocumentScans = false, CancellationToken cancellationToken = default)
     {
         var query = DbSet.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrEmpty(mediaType))
             query = query.Where(m => m.MediaType == mediaType);
+
+        // Filter out document scans (images extracted from PDFs)
+        if (excludeDocumentScans)
+            query = query.Where(m => m.Caption == null || !m.Caption.StartsWith("Extracted from EFTA"));
 
         // Default sort is by MediaFileId ascending
         query = query.OrderBy(m => m.MediaFileId);

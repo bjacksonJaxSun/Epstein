@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 using EpsteinDashboard.Core.Interfaces;
 using EpsteinDashboard.Core.Models;
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -30,7 +30,7 @@ public partial class ChunkSearchProvider : IChunkSearchService
     {
         try
         {
-            await using var connection = new SqliteConnection(_connectionString);
+            await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
 
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
@@ -46,7 +46,7 @@ public partial class ChunkSearchProvider : IChunkSearchService
 
     public async Task<ChunkSearchStats> GetStatsAsync(CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var stats = new ChunkSearchStats();
@@ -107,7 +107,7 @@ public partial class ChunkSearchProvider : IChunkSearchService
             };
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Check if chunks FTS table exists
@@ -130,7 +130,7 @@ public partial class ChunkSearchProvider : IChunkSearchService
     }
 
     private async Task<PagedResult<ChunkSearchResult>> SearchWithChunkFts5(
-        SqliteConnection connection,
+        NpgsqlConnection connection,
         ChunkSearchRequest request,
         string sanitizedQuery,
         CancellationToken cancellationToken)
@@ -215,7 +215,7 @@ public partial class ChunkSearchProvider : IChunkSearchService
         long documentId,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var sql = @"

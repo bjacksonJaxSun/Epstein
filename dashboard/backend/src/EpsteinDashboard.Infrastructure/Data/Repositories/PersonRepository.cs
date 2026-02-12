@@ -3,7 +3,7 @@ using EpsteinDashboard.Core.Entities;
 using EpsteinDashboard.Core.Enums;
 using EpsteinDashboard.Core.Interfaces;
 using EpsteinDashboard.Core.Models;
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 
@@ -30,7 +30,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
 
     public async Task<NetworkGraph> GetNetworkAsync(long personId, int depth = 2, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Use recursive CTE to find connected people up to N depth
@@ -160,7 +160,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
 
     public async Task<IReadOnlyList<(Person Person, int DocumentCount, int EventCount, int RelationshipCount, int FinancialCount, decimal FinancialTotal, int MediaCount)>> GetAllWithFrequenciesAsync(int limit = 500, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var sql = @"
@@ -236,7 +236,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
     public async Task<PagedResult<(Person Person, int DocumentCount, int EventCount, int RelationshipCount, int FinancialCount, int TotalMentions, string? EpsteinRelationship)>> GetPagedWithCountsAsync(
         int page, int pageSize, string? search = null, string? sortBy = null, string? sortDirection = "asc", CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var whereClause = string.IsNullOrEmpty(search) ? "" : "WHERE p.full_name LIKE @Search";
@@ -312,7 +312,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
             LEFT JOIN (
                 SELECT
                     CASE WHEN person1_id = {EPSTEIN_PERSON_ID} THEN person2_id ELSE person1_id END as person_id,
-                    GROUP_CONCAT(DISTINCT relationship_type) as relationship_type
+                    STRING_AGG(DISTINCT relationship_type, ',') as relationship_type
                 FROM relationships
                 WHERE person1_id = {EPSTEIN_PERSON_ID} OR person2_id = {EPSTEIN_PERSON_ID}
                 GROUP BY CASE WHEN person1_id = {EPSTEIN_PERSON_ID} THEN person2_id ELSE person1_id END
@@ -352,7 +352,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
 
     public async Task<IReadOnlyList<(string CanonicalName, List<Person> Variants)>> FindDuplicatesAsync(double similarityThreshold = 0.8, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Get all people with their counts
@@ -483,7 +483,7 @@ public class PersonRepository : BaseRepository<Person>, IPersonRepository
 
     public async Task MergePersonsAsync(long primaryPersonId, IEnumerable<long> mergePersonIds, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         using var transaction = await connection.BeginTransactionAsync(cancellationToken);

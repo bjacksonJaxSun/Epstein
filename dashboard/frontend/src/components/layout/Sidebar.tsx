@@ -16,6 +16,7 @@ import {
   Bookmark,
   Sparkles,
   Settings,
+  Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -42,6 +43,7 @@ const mainNavItems: NavItem[] = [
 const secondaryNavItems: NavItem[] = [
   { icon: Layout, label: 'Boards', path: '/boards' },
   { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks' },
+  { icon: Eye, label: 'Vision Analysis', path: '/vision' },
   { icon: Sparkles, label: 'AI Insights', path: '/ai-insights' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];

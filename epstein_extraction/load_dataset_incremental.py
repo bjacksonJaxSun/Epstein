@@ -214,6 +214,7 @@ def process_batch(extract_dir: str, session, extractor: PDFExtractor, extract_im
                 # Extract PDF content
                 result = extractor.extract(filepath)
 
+                # Always add the document, even if extraction fails
                 if result:
                     doc = Document(
                         efta_number=efta_number,
@@ -223,22 +224,52 @@ def process_batch(extract_dir: str, session, extractor: PDFExtractor, extract_im
                         file_size_bytes=os.path.getsize(filepath),
                         extraction_status='completed' if result.get('text') else 'partial',
                     )
-                    session.add(doc)
-                    session.flush()  # Get the document ID
+                else:
+                    # Extraction failed - still add document with failed status
+                    doc = Document(
+                        efta_number=efta_number,
+                        file_path=filepath,
+                        full_text=None,
+                        page_count=None,
+                        file_size_bytes=os.path.getsize(filepath) if os.path.exists(filepath) else 0,
+                        extraction_status='failed',
+                    )
+                    logger.warning(f"Adding {efta_number} with failed extraction status")
 
-                    # Extract images
-                    if extract_images:
-                        img_count = extract_images_from_pdf(session, doc.document_id, efta_number, filepath)
-                        total_images += img_count
+                session.add(doc)
+                session.flush()  # Get the document ID
 
-                    processed += 1
+                # Extract images (try even for failed extractions - might be scanned docs)
+                if extract_images:
+                    img_count = extract_images_from_pdf(session, doc.document_id, efta_number, filepath)
+                    total_images += img_count
+                    # If we got images, update status to partial (can be OCR'd later)
+                    if img_count > 0 and doc.extraction_status == 'failed':
+                        doc.extraction_status = 'partial'
 
-                    if processed % 50 == 0:
-                        session.commit()
-                        logger.info(f"Committed {processed} documents, {total_images} images in this batch")
+                processed += 1
+
+                if processed % 50 == 0:
+                    session.commit()
+                    logger.info(f"Committed {processed} documents, {total_images} images in this batch")
 
             except Exception as e:
                 logger.error(f"Error processing {filename}: {e}")
+                # Rollback the failed transaction
+                session.rollback()
+                # Still try to add a minimal record
+                try:
+                    doc = Document(
+                        efta_number=efta_number,
+                        file_path=filepath,
+                        extraction_status='error',
+                    )
+                    session.add(doc)
+                    session.commit()
+                    processed += 1
+                except Exception as inner_e:
+                    logger.error(f"Could not add error record for {filename}: {inner_e}")
+                    session.rollback()
                 continue
 
     session.commit()

@@ -15,11 +15,12 @@ export const mediaApi = {
     page?: number;
     pageSize?: number;
     mediaType?: string;
+    excludeDocumentScans?: boolean;
   }) => apiGet<PaginatedResponse<MediaFile>>('/media', {
     ...params,
     page: params?.page != null ? params.page - 1 : undefined,
   }),
   getById: (id: number) => apiGet<MediaFile>(`/media/${id}`),
-  getPosition: (id: number, pageSize: number, mediaType?: string) =>
-    apiGet<MediaPosition>(`/media/${id}/position`, { pageSize, mediaType }),
+  getPosition: (id: number, pageSize: number, mediaType?: string, excludeDocumentScans?: boolean) =>
+    apiGet<MediaPosition>(`/media/${id}/position`, { pageSize, mediaType, excludeDocumentScans }),
 };

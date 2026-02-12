@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 using Dapper;
 using EpsteinDashboard.Core.Interfaces;
 using EpsteinDashboard.Core.Models;
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using Microsoft.Extensions.Configuration;
 
 namespace EpsteinDashboard.Infrastructure.Search;
@@ -31,7 +31,7 @@ public partial class Fts5SearchProvider : ISearchService
             };
         }
 
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // Check if FTS5 table exists, fall back to LIKE search if not
@@ -47,7 +47,7 @@ public partial class Fts5SearchProvider : ISearchService
     }
 
     private async Task<PagedResult<SearchResult>> SearchWithFts5(
-        SqliteConnection connection, SearchRequest request, string sanitizedQuery,
+        NpgsqlConnection connection, SearchRequest request, string sanitizedQuery,
         CancellationToken cancellationToken)
     {
         // Build filter conditions
@@ -118,7 +118,7 @@ public partial class Fts5SearchProvider : ISearchService
     }
 
     private async Task<PagedResult<SearchResult>> SearchWithLike(
-        SqliteConnection connection, SearchRequest request,
+        NpgsqlConnection connection, SearchRequest request,
         CancellationToken cancellationToken)
     {
         var likePattern = $"%{request.Query}%";
@@ -170,7 +170,7 @@ public partial class Fts5SearchProvider : ISearchService
         if (string.IsNullOrWhiteSpace(query) || query.Length < 2)
             return Array.Empty<string>();
 
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var sql = @"

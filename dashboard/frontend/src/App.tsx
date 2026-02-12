@@ -21,6 +21,7 @@ import {
   AIInsightsPage,
   SearchPage,
   SettingsPage,
+  VisionAnalysisPage,
 } from './pages';
 
 const queryClient = new QueryClient({
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="bookmarks" element={<BookmarksPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="ai-insights" element={<AIInsightsPage />} />
+            <Route path="vision" element={<VisionAnalysisPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>

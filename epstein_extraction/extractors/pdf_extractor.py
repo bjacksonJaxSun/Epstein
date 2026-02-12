@@ -59,30 +59,30 @@ class PDFExtractor:
         # Try multiple extraction methods
         success = False
 
-        # Method 1: pdfplumber (best for text-based PDFs)
+        # Method 1: PyMuPDF/fitz (fastest, C-based)
         try:
-            text, page_count = self._extract_with_pdfplumber(pdf_path)
+            text, page_count = self._extract_with_pymupdf(pdf_path)
             if text and len(text.strip()) > 100:
                 data['full_text'] = text
                 data['page_count'] = page_count
-                data['extraction_method'] = 'pdfplumber'
+                data['extraction_method'] = 'pymupdf'
                 success = True
-                logger.debug(f"Extracted {len(text)} chars with pdfplumber")
+                logger.debug(f"Extracted {len(text)} chars with PyMuPDF")
         except Exception as e:
-            logger.warning(f"pdfplumber failed: {e}")
+            logger.warning(f"PyMuPDF failed: {e}")
 
-        # Method 2: PyPDF2 (fallback)
+        # Method 2: pdfplumber (fallback, better layout)
         if not success:
             try:
-                text, page_count = self._extract_with_pypdf2(pdf_path)
+                text, page_count = self._extract_with_pdfplumber(pdf_path)
                 if text and len(text.strip()) > 100:
                     data['full_text'] = text
                     data['page_count'] = page_count
-                    data['extraction_method'] = 'pypdf2'
+                    data['extraction_method'] = 'pdfplumber'
                     success = True
-                    logger.debug(f"Extracted {len(text)} chars with PyPDF2")
+                    logger.debug(f"Extracted {len(text)} chars with pdfplumber")
             except Exception as e:
-                logger.warning(f"PyPDF2 failed: {e}")
+                logger.warning(f"pdfplumber failed: {e}")
 
         # Method 3: OCR with PyMuPDF (for scanned documents)
         if not success and self.enable_ocr:
@@ -119,6 +119,18 @@ class PDFExtractor:
         if match:
             return match.group(0)
         return None
+
+    def _extract_with_pymupdf(self, pdf_path: Path) -> tuple:
+        """Extract text using PyMuPDF (fitz) - fastest method"""
+        doc = fitz.open(pdf_path)
+        page_count = doc.page_count
+        text_parts = []
+        for page in doc:
+            page_text = page.get_text()
+            if page_text:
+                text_parts.append(page_text)
+        doc.close()
+        return '\n\n'.join(text_parts), page_count
 
     def _extract_with_pdfplumber(self, pdf_path: Path) -> tuple:
         """Extract text using pdfplumber"""

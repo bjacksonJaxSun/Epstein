@@ -1,0 +1,30 @@
+Copy and paste this into Claude Code on the second machine:
+
+---START PROMPT---
+
+Set up this machine to run distributed OCR. The script and data are on \\BOBBYHOMEEP\EpsteinDownloader.
+
+## 1. Install Tesseract OCR
+
+Download and install from: https://github.com/UB-Mannheim/tesseract/wiki
+(Use Windows 64-bit installer, install to default location C:\Program Files\Tesseract-OCR\)
+
+## 2. Install Python dependencies
+
+```
+pip install pytesseract pillow loguru
+```
+
+## 3. Run the OCR worker
+
+```
+python "\\BOBBYHOMEEP\EpsteinDownloader\epstein_extraction\ocr_worker_remote.py"
+```
+
+That's it! The script will:
+- Process ODD document IDs (the main machine processes EVEN)
+- Read images from the network share
+- Update the shared database directly
+- Show progress as it runs
+
+---END PROMPT---

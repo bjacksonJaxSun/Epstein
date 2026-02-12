@@ -108,6 +108,7 @@ export function MediaPage() {
   const [goToIdInput, setGoToIdInput] = useState('');
   const [goToIdError, setGoToIdError] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
+  const [excludeDocumentScans, setExcludeDocumentScans] = useState(true); // Hide document scans by default
 
   // Bi-directional pagination state
   const [loadedPages, setLoadedPages] = useState<Map<number, PaginatedResponse<MediaFile>>>(new Map());
@@ -172,6 +173,7 @@ export function MediaPage() {
         page: pageNum + 1, // API uses 1-based for our call, converts to 0-based
         pageSize: PAGE_SIZE,
         mediaType: queryMediaType,
+        excludeDocumentScans,
       });
       setLoadedPages(prev => new Map(prev).set(pageNum, result));
       setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
@@ -179,16 +181,17 @@ export function MediaPage() {
       isLoadingRef.current = false;
       setIsLoadingPage(false);
     }
-  }, [loadedPages, queryMediaType]);
+  }, [loadedPages, queryMediaType, excludeDocumentScans]);
 
   // Initial load - page 0
   const { isLoading, isError } = useQuery({
-    queryKey: ['media-initial', isBookmarkedTab ? 'all' : activeTab],
+    queryKey: ['media-initial', isBookmarkedTab ? 'all' : activeTab, excludeDocumentScans],
     queryFn: async () => {
       const result = await mediaApi.list({
         page: 1,
         pageSize: PAGE_SIZE,
         mediaType: queryMediaType,
+        excludeDocumentScans,
       });
       setLoadedPages(new Map([[0, result]]));
       setCurrentStartPage(0);
@@ -210,7 +213,7 @@ export function MediaPage() {
 
     try {
       // Get the position of this media ID from the backend
-      const position = await mediaApi.getPosition(id, PAGE_SIZE, queryMediaType);
+      const position = await mediaApi.getPosition(id, PAGE_SIZE, queryMediaType, excludeDocumentScans);
 
       // Load that specific page - clear existing pages first to avoid gaps
       const pageNum = position.page;
@@ -218,6 +221,7 @@ export function MediaPage() {
         page: pageNum + 1,
         pageSize: PAGE_SIZE,
         mediaType: queryMediaType,
+        excludeDocumentScans,
       });
 
       // Replace all loaded pages with just this one page
@@ -369,13 +373,13 @@ export function MediaPage() {
     }
   }, [lightboxIndex, imageItems]);
 
-  // Reset when tab changes
+  // Reset when tab or filter changes
   useEffect(() => {
     setLoadedPages(new Map());
     setCurrentStartPage(0);
     setSelectedMedia(null);
     queryClient.invalidateQueries({ queryKey: ['media-initial'] });
-  }, [activeTab, queryClient]);
+  }, [activeTab, excludeDocumentScans, queryClient]);
 
   function handleTabChange(tab: MediaTab) {
     setActiveTab(tab);
@@ -436,6 +440,21 @@ export function MediaPage() {
             </button>
           ))}
         </div>
+
+        {/* Document Scans Toggle */}
+        <button
+          type="button"
+          onClick={() => setExcludeDocumentScans(!excludeDocumentScans)}
+          className={cn(
+            'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+            excludeDocumentScans
+              ? 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber'
+              : 'border-border-subtle bg-surface-raised text-text-secondary hover:bg-surface-overlay'
+          )}
+        >
+          <FileText className="h-3.5 w-3.5" />
+          {excludeDocumentScans ? 'Photos Only' : 'All Images'}
+        </button>
 
         {/* Go to ID */}
         <div className="flex items-center gap-2">
@@ -590,6 +609,7 @@ export function MediaPage() {
             isBookmarked={isBookmarked(selectedMedia.mediaFileId)}
             onClose={() => setSelectedMedia(null)}
             onToggleBookmark={() => toggleBookmark(selectedMedia)}
+            onOpenFullscreen={() => handleOpenLightbox(selectedMedia)}
           />
         )}
       </div>
@@ -718,11 +738,13 @@ function MediaDetailSidebar({
   isBookmarked,
   onClose,
   onToggleBookmark,
+  onOpenFullscreen,
 }: {
   media: MediaFile;
   isBookmarked: boolean;
   onClose: () => void;
   onToggleBookmark: () => void;
+  onOpenFullscreen: () => void;
 }) {
   const Icon = getMediaIcon(media.mediaType);
   const [imgError, setImgError] = useState(false);
@@ -759,14 +781,26 @@ function MediaDetailSidebar({
       </div>
 
       {/* Preview */}
-      <div className="flex aspect-video items-center justify-center bg-surface-sunken overflow-hidden">
+      <div className="flex aspect-video items-center justify-center bg-surface-sunken overflow-hidden relative group/preview">
         {media.mediaType === 'image' && !imgError ? (
-          <img
-            src={imageUrl}
-            alt={media.fileName}
-            className="h-full w-full object-contain"
-            onError={() => setImgError(true)}
-          />
+          <>
+            <img
+              src={imageUrl}
+              alt={media.fileName}
+              className="h-full w-full object-contain cursor-pointer"
+              onError={() => setImgError(true)}
+              onClick={onOpenFullscreen}
+            />
+            <button
+              type="button"
+              onClick={onOpenFullscreen}
+              className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-md bg-black/60 backdrop-blur-sm px-2.5 py-1.5 text-xs font-medium text-white opacity-0 group-hover/preview:opacity-100 transition-opacity hover:bg-black/80"
+              title="View fullscreen"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+              Fullscreen
+            </button>
+          </>
         ) : media.mediaType === 'video' ? (
           <div className="flex flex-col items-center gap-2 w-full h-full">
             <video

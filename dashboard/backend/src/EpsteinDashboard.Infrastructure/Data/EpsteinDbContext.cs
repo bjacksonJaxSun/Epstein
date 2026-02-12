@@ -27,6 +27,9 @@ public class EpsteinDbContext : DbContext
     public DbSet<VisualEntity> VisualEntities => Set<VisualEntity>();
     public DbSet<ImageAnalysis> ImageAnalyses => Set<ImageAnalysis>();
     public DbSet<ExtractionLog> ExtractionLogs => Set<ExtractionLog>();
+    public DbSet<FaceDetection> FaceDetections => Set<FaceDetection>();
+    public DbSet<FaceCluster> FaceClusters => Set<FaceCluster>();
+    public DbSet<DocumentClassification> DocumentClassifications => Set<DocumentClassification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

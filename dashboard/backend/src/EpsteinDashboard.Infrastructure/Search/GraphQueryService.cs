@@ -2,7 +2,7 @@ using Dapper;
 using EpsteinDashboard.Core.Enums;
 using EpsteinDashboard.Core.Interfaces;
 using EpsteinDashboard.Core.Models;
-using Microsoft.Data.Sqlite;
+using Npgsql;
 using Microsoft.Extensions.Configuration;
 
 namespace EpsteinDashboard.Infrastructure.Search;
@@ -19,7 +19,7 @@ public class GraphQueryService : IGraphQueryService
 
     public async Task<NetworkGraph> GetNetworkGraphAsync(long personId, int depth = 2, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var sql = @"
@@ -84,7 +84,7 @@ public class GraphQueryService : IGraphQueryService
 
     public async Task<ConnectionPath> FindConnectionPathAsync(long person1Id, long person2Id, int maxDepth = 6, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqliteConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         // BFS using recursive CTE to find shortest path

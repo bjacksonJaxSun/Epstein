@@ -65,7 +65,7 @@ DEFAULT_DATASET = os.getenv('DATASET', 'dataset_1')
 # ============================================
 # DATABASE CONFIGURATION
 # ============================================
-DB_TYPE = os.getenv("DB_TYPE", "sqlite")  # 'sqlite' or 'postgresql'
+DB_TYPE = os.getenv("DB_TYPE", "postgresql")  # 'sqlite' or 'postgresql'
 
 if DB_TYPE == "sqlite":
     # SQLite configuration (easier for getting started)
@@ -77,8 +77,8 @@ else:
     DB_HOST = os.getenv("DB_HOST", "localhost")
     DB_PORT = os.getenv("DB_PORT", "5432")
     DB_NAME = os.getenv("DB_NAME", "epstein_documents")
-    DB_USER = os.getenv("DB_USER", "postgres")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+    DB_USER = os.getenv("DB_USER", "epstein_user")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "epstein_secure_pw_2024")
     DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     logger.info(f"Using PostgreSQL database: {DB_HOST}:{DB_PORT}/{DB_NAME}")
 

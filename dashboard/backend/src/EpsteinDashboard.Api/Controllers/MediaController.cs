@@ -26,9 +26,10 @@ public class MediaController : ControllerBase
         [FromQuery] string? mediaType = null,
         [FromQuery] string? sortBy = null,
         [FromQuery] string? sortDirection = "asc",
+        [FromQuery] bool excludeDocumentScans = false,
         CancellationToken cancellationToken = default)
     {
-        var result = await _repository.GetFilteredAsync(page, pageSize, mediaType, sortBy, sortDirection, cancellationToken);
+        var result = await _repository.GetFilteredAsync(page, pageSize, mediaType, sortBy, sortDirection, excludeDocumentScans, cancellationToken);
         return Ok(new PagedResult<MediaFileDto>
         {
             Items = _mapper.Map<IReadOnlyList<MediaFileDto>>(result.Items),
@@ -52,9 +53,10 @@ public class MediaController : ControllerBase
         long id,
         [FromQuery] int pageSize = 48,
         [FromQuery] string? mediaType = null,
+        [FromQuery] bool excludeDocumentScans = false,
         CancellationToken cancellationToken = default)
     {
-        var position = await _repository.GetMediaPositionAsync(id, pageSize, mediaType, cancellationToken);
+        var position = await _repository.GetMediaPositionAsync(id, pageSize, mediaType, excludeDocumentScans, cancellationToken);
         if (position == null) return NotFound();
         return Ok(new MediaPositionDto
         {

@@ -17,9 +17,9 @@ public static class DependencyInjection
 
         services.AddDbContext<EpsteinDbContext>(options =>
         {
-            options.UseSqlite(connectionString, sqliteOptions =>
+            options.UseNpgsql(connectionString, npgsqlOptions =>
             {
-                sqliteOptions.CommandTimeout(60);
+                npgsqlOptions.CommandTimeout(60);
             });
             options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
         });
