@@ -107,12 +107,14 @@ export function MediaPage() {
   const [lightboxMedia, setLightboxMedia] = useState<MediaFile | null>(null);
   const [goToIdInput, setGoToIdInput] = useState('');
   const [goToIdError, setGoToIdError] = useState<string | null>(null);
+  const [goToPageInput, setGoToPageInput] = useState('');
+  const [goToPageError, setGoToPageError] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
   const [excludeDocumentScans, setExcludeDocumentScans] = useState(true); // Hide document scans by default
 
   // Bi-directional pagination state
   const [loadedPages, setLoadedPages] = useState<Map<number, PaginatedResponse<MediaFile>>>(new Map());
-  const [currentStartPage, setCurrentStartPage] = useState(0);
+  const [_currentStartPage, setCurrentStartPage] = useState(0);
   const [totalInfo, setTotalInfo] = useState({ totalCount: 0, totalPages: 0 });
   const [isLoadingPage, setIsLoadingPage] = useState(false);
   const isLoadingRef = useRef(false); // Ref to track loading state across renders
@@ -201,6 +203,7 @@ export function MediaPage() {
   });
 
   // Handle "Go to ID" - jump directly to the page containing that ID
+  // If the exact ID doesn't exist in the current filter, find the nearest matching ID
   const handleGoToId = async () => {
     const id = parseInt(goToIdInput.trim(), 10);
     if (isNaN(id) || id <= 0) {
@@ -212,8 +215,17 @@ export function MediaPage() {
     setIsJumping(true);
 
     try {
-      // Get the position of this media ID from the backend
-      const position = await mediaApi.getPosition(id, PAGE_SIZE, queryMediaType, excludeDocumentScans);
+      // First, find the nearest valid ID that matches the current filters
+      const nearestResult = await mediaApi.findNearest(id, queryMediaType, excludeDocumentScans);
+      const targetId = nearestResult.nearestId;
+
+      // If we got a different ID, show a message
+      if (!nearestResult.isExactMatch) {
+        setGoToIdError(`ID ${id} not in filter. Showing nearest: ${targetId}`);
+      }
+
+      // Get the position of the target media ID from the backend
+      const position = await mediaApi.getPosition(targetId, PAGE_SIZE, queryMediaType, excludeDocumentScans);
 
       // Load that specific page - clear existing pages first to avoid gaps
       const pageNum = position.page;
@@ -231,19 +243,61 @@ export function MediaPage() {
       setGoToIdInput('');
 
       // Get the media for the sidebar
-      const media = await mediaApi.getById(id);
+      const media = await mediaApi.getById(targetId);
       setSelectedMedia(media);
 
       // Wait for render then scroll to the element
       setTimeout(() => {
-        const element = document.getElementById(`media-card-${id}`);
+        const element = document.getElementById(`media-card-${targetId}`);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 100);
 
     } catch {
-      setGoToIdError(`Media ID ${id} not found`);
+      setGoToIdError(`No media found matching the current filters`);
+    } finally {
+      setIsJumping(false);
+    }
+  };
+
+  // Handle "Go to Page" - jump directly to a specific page number
+  const handleGoToPage = async () => {
+    const pageNum = parseInt(goToPageInput.trim(), 10);
+    if (isNaN(pageNum) || pageNum < 1) {
+      setGoToPageError('Enter a valid page number');
+      return;
+    }
+
+    if (pageNum > totalInfo.totalPages) {
+      setGoToPageError(`Max page is ${totalInfo.totalPages}`);
+      return;
+    }
+
+    setGoToPageError(null);
+    setIsJumping(true);
+
+    try {
+      // Load that specific page (convert to 0-based index)
+      const pageIndex = pageNum - 1;
+      const result = await mediaApi.list({
+        page: pageNum,
+        pageSize: PAGE_SIZE,
+        mediaType: queryMediaType,
+        excludeDocumentScans,
+      });
+
+      // Replace all loaded pages with just this one page
+      setLoadedPages(new Map([[pageIndex, result]]));
+      setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
+      setCurrentStartPage(pageIndex);
+      setGoToPageInput('');
+
+      // Scroll to top of grid
+      window.scrollTo({ top: 200, behavior: 'smooth' });
+
+    } catch {
+      setGoToPageError('Failed to load page');
     } finally {
       setIsJumping(false);
     }
@@ -490,16 +544,46 @@ export function MediaPage() {
             <div className="flex items-center gap-2 rounded-lg border border-accent-blue/30 bg-accent-blue/10 px-3 py-1.5">
               <Loader2 className="h-4 w-4 animate-spin text-accent-blue" />
               <span className="text-xs text-accent-blue font-medium">
-                Jumping to ID...
+                Jumping...
               </span>
             </div>
           )}
-          {/* Page range indicator */}
-          {sortedPageNumbers.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-              <span>Pages {minLoadedPage + 1}-{maxLoadedPage + 1} of {totalInfo.totalPages}</span>
+          {/* Go to Page */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-border-subtle bg-surface-raised">
+              <div className="flex items-center gap-1.5 px-2 text-text-tertiary">
+                <span className="text-xs">Page:</span>
+              </div>
+              <input
+                type="text"
+                value={goToPageInput}
+                onChange={(e) => {
+                  setGoToPageInput(e.target.value);
+                  setGoToPageError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleGoToPage()}
+                placeholder={`1-${totalInfo.totalPages || '?'}`}
+                className="w-20 bg-transparent px-2 py-1.5 text-xs text-text-primary placeholder:text-text-disabled focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleGoToPage}
+                className="flex items-center justify-center h-full px-2 text-text-tertiary hover:text-accent-blue transition-colors border-l border-border-subtle"
+                title="Go to page"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
             </div>
-          )}
+            {goToPageError && (
+              <span className="text-xs text-accent-red">{goToPageError}</span>
+            )}
+            {/* Page range indicator */}
+            {sortedPageNumbers.length > 0 && (
+              <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                <span>Loaded: {minLoadedPage + 1}-{maxLoadedPage + 1} of {totalInfo.totalPages}</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
       </div>
@@ -646,6 +730,7 @@ function MediaCard({
 }) {
   const Icon = getMediaIcon(media.mediaType);
   const [imgError, setImgError] = useState(false);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const imageUrl = `/api/media/${media.mediaFileId}/file`;
 
@@ -654,12 +739,37 @@ function MediaCard({
     onToggleBookmark();
   };
 
+  // Handle click with delay to distinguish single from double click
+  // This prevents layout shift (from sidebar opening) before double-click completes
+  const handleClick = useCallback(() => {
+    if (clickTimerRef.current) {
+      // Double-click detected - clear timer and trigger double-click action
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      onDoubleClick();
+    } else {
+      // First click - start timer, trigger select after delay
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        onSelect();
+      }, 200); // 200ms delay to detect double-click
+    }
+  }, [onSelect, onDoubleClick]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <button
       id={`media-card-${media.mediaFileId}`}
       type="button"
-      onClick={onSelect}
-      onDoubleClick={onDoubleClick}
+      onClick={handleClick}
       className={cn(
         'flex flex-col rounded-lg border text-left transition-colors relative group',
         isSelected
@@ -699,12 +809,18 @@ function MediaCard({
             onError={() => setImgError(true)}
             loading="lazy"
           />
-        ) : media.mediaType === 'video' ? (
+        ) : media.mediaType === 'video' && !imgError ? (
           <>
-            <Film className="h-8 w-8 text-text-disabled" />
+            <img
+              src={`/api/media/${media.mediaFileId}/thumbnail`}
+              alt={media.fileName}
+              className="h-full w-full object-cover"
+              onError={() => setImgError(true)}
+              loading="lazy"
+            />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-accent-purple/80">
-                <Video className="h-4 w-4 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
+                <Video className="h-5 w-5 text-white" />
               </div>
             </div>
           </>

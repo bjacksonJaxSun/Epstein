@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using AutoMapper;
 using EpsteinDashboard.Application.DTOs;
 using EpsteinDashboard.Core.Interfaces;
@@ -11,12 +12,21 @@ namespace EpsteinDashboard.Api.Controllers;
 public class MediaController : ControllerBase
 {
     private readonly IMediaRepository _repository;
+    private readonly IMediaFileService _mediaFileService;
     private readonly IMapper _mapper;
+    private static readonly string ThumbnailCacheDir = "/data/video_thumbnails";
 
-    public MediaController(IMediaRepository repository, IMapper mapper)
+    public MediaController(IMediaRepository repository, IMediaFileService mediaFileService, IMapper mapper)
     {
         _repository = repository;
+        _mediaFileService = mediaFileService;
         _mapper = mapper;
+
+        // Ensure thumbnail cache directory exists
+        if (!Directory.Exists(ThumbnailCacheDir))
+        {
+            Directory.CreateDirectory(ThumbnailCacheDir);
+        }
     }
 
     [HttpGet]
@@ -82,7 +92,12 @@ public class MediaController : ControllerBase
         var media = await _repository.GetByIdAsync(id, cancellationToken);
         if (media == null) return NotFound();
 
-        if (string.IsNullOrEmpty(media.FilePath) || !System.IO.File.Exists(media.FilePath))
+        if (string.IsNullOrEmpty(media.FilePath))
+            return NotFound("File path not available.");
+
+        // Use IMediaFileService to resolve the actual file path
+        var resolvedPath = _mediaFileService.FindMedia(media.FilePath);
+        if (string.IsNullOrEmpty(resolvedPath) || !System.IO.File.Exists(resolvedPath))
             return NotFound("File not found on disk.");
 
         var contentType = media.MediaType?.ToLowerInvariant() switch
@@ -119,7 +134,110 @@ public class MediaController : ControllerBase
             _ => "application/octet-stream"
         };
 
-        var stream = System.IO.File.OpenRead(media.FilePath);
-        return File(stream, contentType, media.FileName ?? Path.GetFileName(media.FilePath));
+        // Use PhysicalFile to enable Range request support (required for video seeking/thumbnails)
+        return PhysicalFile(resolvedPath, contentType, media.FileName ?? Path.GetFileName(resolvedPath), enableRangeProcessing: true);
+    }
+
+    [HttpGet("{id:long}/thumbnail")]
+    public async Task<IActionResult> GetThumbnail(long id, CancellationToken cancellationToken)
+    {
+        var media = await _repository.GetByIdAsync(id, cancellationToken);
+        if (media == null) return NotFound();
+
+        // For images, return the image itself
+        if (media.MediaType?.ToLowerInvariant() == "image")
+        {
+            if (string.IsNullOrEmpty(media.FilePath))
+                return NotFound("File path not available.");
+
+            var resolvedPath = _mediaFileService.FindMedia(media.FilePath);
+            if (string.IsNullOrEmpty(resolvedPath) || !System.IO.File.Exists(resolvedPath))
+                return NotFound("File not found on disk.");
+
+            return PhysicalFile(resolvedPath, "image/jpeg", enableRangeProcessing: true);
+        }
+
+        // For videos, generate/return cached thumbnail
+        if (media.MediaType?.ToLowerInvariant() != "video")
+            return NotFound("Thumbnails only available for images and videos.");
+
+        if (string.IsNullOrEmpty(media.FilePath))
+            return NotFound("Video file path not available.");
+
+        var videoPath = _mediaFileService.FindMedia(media.FilePath);
+        if (string.IsNullOrEmpty(videoPath) || !System.IO.File.Exists(videoPath))
+            return NotFound("Video file not found on disk.");
+
+        var thumbnailPath = Path.Combine(ThumbnailCacheDir, $"{id}.jpg");
+
+        // Return cached thumbnail if exists
+        if (System.IO.File.Exists(thumbnailPath))
+        {
+            return PhysicalFile(thumbnailPath, "image/jpeg", enableRangeProcessing: true);
+        }
+
+        // Generate thumbnail using FFmpeg
+        try
+        {
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "ffmpeg",
+                    Arguments = $"-i \"{videoPath}\" -ss 00:00:01 -vframes 1 -vf \"scale=320:-1\" -y \"{thumbnailPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            await process.WaitForExitAsync(cancellationToken);
+
+            if (process.ExitCode != 0 || !System.IO.File.Exists(thumbnailPath))
+            {
+                // Try at 0 seconds if 1 second failed (video might be shorter)
+                process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "ffmpeg",
+                        Arguments = $"-i \"{videoPath}\" -ss 00:00:00 -vframes 1 -vf \"scale=320:-1\" -y \"{thumbnailPath}\"",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                process.Start();
+                await process.WaitForExitAsync(cancellationToken);
+            }
+
+            if (System.IO.File.Exists(thumbnailPath))
+            {
+                return PhysicalFile(thumbnailPath, "image/jpeg", enableRangeProcessing: true);
+            }
+
+            return StatusCode(500, "Failed to generate thumbnail");
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"Error generating thumbnail: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Returns information about media file service configuration.
+    /// Useful for debugging path issues.
+    /// </summary>
+    [HttpGet("config")]
+    public ActionResult GetMediaConfig()
+    {
+        return Ok(new
+        {
+            isConfigured = _mediaFileService.IsConfigured,
+            searchPaths = _mediaFileService.SearchPaths
+        });
     }
 }

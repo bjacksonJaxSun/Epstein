@@ -2,6 +2,7 @@ using EpsteinDashboard.Core.Interfaces;
 using EpsteinDashboard.Infrastructure.Data;
 using EpsteinDashboard.Infrastructure.Data.Repositories;
 using EpsteinDashboard.Infrastructure.Search;
+using EpsteinDashboard.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +36,9 @@ public static class DependencyInjection
         services.AddScoped<IFinancialTransactionRepository, FinancialTransactionRepository>();
         services.AddScoped<IMediaRepository, MediaRepository>();
         services.AddScoped<IEvidenceRepository, EvidenceRepository>();
+
+        // File resolution services
+        services.AddSingleton<IMediaFileService, MediaFileService>();
 
         // Search and graph services
         services.AddScoped<ISearchService, Fts5SearchProvider>();
