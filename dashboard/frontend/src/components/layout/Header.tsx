@@ -12,7 +12,13 @@ import {
   Clock,
   X,
   ArrowRight,
+  LogOut,
+  ChevronDown,
+  Shield,
 } from 'lucide-react';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useLogout } from '@/hooks';
+import { getTierName } from '@/types/auth';
 import { useQuery } from '@tanstack/react-query';
 import { searchApi } from '@/api/endpoints/search';
 import { useBookmarkStore } from '@/stores/useBookmarkStore';
@@ -82,14 +88,32 @@ const typeLabels: Record<string, string> = {
 export function Header() {
   const navigate = useNavigate();
   const bookmarkCount = useBookmarkStore((s) => s.bookmarks.length);
+  const user = useAuthStore((state) => state.user);
+  const { mutate: logout, isPending: isLoggingOut } = useLogout();
   const [focused, setFocused] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user menu on click outside
+  useEffect(() => {
+    function handleClickOutsideUserMenu(e: MouseEvent) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      ) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutsideUserMenu);
+    return () => document.removeEventListener('mousedown', handleClickOutsideUserMenu);
+  }, []);
 
   // Debounce the search query
   useEffect(() => {
@@ -473,6 +497,71 @@ export function Header() {
         >
           <Settings className="h-4 w-4" />
         </button>
+
+        {/* User Menu */}
+        {user && (
+          <div className="relative ml-2" ref={userMenuRef}>
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-text-secondary transition-colors hover:bg-surface-overlay hover:text-text-primary"
+              aria-label="User menu"
+              aria-expanded={userMenuOpen}
+              aria-haspopup="menu"
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-blue/20 text-accent-blue">
+                <User className="h-4 w-4" />
+              </div>
+              <span className="hidden text-sm font-medium text-text-primary sm:inline">
+                {user.username}
+              </span>
+              <ChevronDown className="h-3.5 w-3.5 text-text-tertiary" />
+            </button>
+
+            {userMenuOpen && (
+              <div className="absolute right-0 top-full z-50 mt-1 w-64 rounded-lg border border-border-subtle bg-surface-raised shadow-xl">
+                {/* User info */}
+                <div className="border-b border-border-subtle p-3">
+                  <p className="font-medium text-text-primary">{user.username}</p>
+                  <p className="text-sm text-text-tertiary">{user.email}</p>
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <Shield className="h-3.5 w-3.5 text-accent-blue" />
+                    <span className="text-xs font-medium capitalize text-accent-blue">
+                      {getTierName(user.maxTierLevel)} Tier
+                    </span>
+                  </div>
+                </div>
+
+                {/* Menu items */}
+                <div className="p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      navigate('/settings');
+                    }}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-text-secondary transition-colors hover:bg-surface-overlay hover:text-text-primary"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                    }}
+                    disabled={isLoggingOut}
+                    className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/10"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {isLoggingOut ? 'Signing out...' : 'Sign Out'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

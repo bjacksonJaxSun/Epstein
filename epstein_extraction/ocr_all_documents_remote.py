@@ -45,7 +45,10 @@ LOCAL_BASE = r'C:\Development\EpsteinDownloader'
 
 # Settings
 BATCH_SIZE = 50  # Documents to claim at a time
-NUM_WORKERS = 8  # Parallel OCR threads
+# Auto-detect optimal worker count based on CPU cores
+# Override with OCR_WORKERS environment variable if needed
+_cpu_count = os.cpu_count() or 4
+NUM_WORKERS = int(os.getenv('OCR_WORKERS', _cpu_count))
 TESSERACT_CONFIG = '--oem 1 --psm 3'
 
 

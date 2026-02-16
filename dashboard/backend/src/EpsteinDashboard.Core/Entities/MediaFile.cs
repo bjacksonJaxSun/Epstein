@@ -27,6 +27,7 @@ public class MediaFile
     public bool? IsExplicit { get; set; }
     public bool? IsSensitive { get; set; }
     public string? ClassificationLevel { get; set; }
+    public bool? IsLikelyPhoto { get; set; }
     public string? CreatedAt { get; set; }
     public string? UpdatedAt { get; set; }
 

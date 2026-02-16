@@ -1,0 +1,167 @@
+# GitHub Actions workflow for deploying to Azure Container Apps
+# This workflow builds and deploys both frontend and API containers
+#
+# Required secrets:
+#   AZURE_CREDENTIALS - Service principal credentials JSON
+#   AZURE_SUBSCRIPTION_ID - Azure subscription ID
+#   ACR_LOGIN_SERVER - Azure Container Registry login server (e.g., epsteinacr.azurecr.io)
+#   ACR_USERNAME - ACR admin username
+#   ACR_PASSWORD - ACR admin password
+
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dashboard/**'
+      - '.github/workflows/deploy-aca.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'prod'
+        type: choice
+        options:
+          - prod
+          - staging
+
+env:
+  RESOURCE_GROUP: epstein-rg
+  CONTAINER_ENV: epstein-${{ github.event.inputs.environment || 'prod' }}-env
+  API_APP_NAME: epstein-${{ github.event.inputs.environment || 'prod' }}-api
+  FRONTEND_APP_NAME: epstein-${{ github.event.inputs.environment || 'prod' }}-frontend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Generate image metadata
+        id: meta
+        run: |
+          echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "date=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dashboard/backend
+          file: ./dashboard/backend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/epstein-api:${{ steps.meta.outputs.version }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/epstein-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dashboard/frontend
+          file: ./dashboard/frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/epstein-frontend:${{ steps.meta.outputs.version }}
+            ${{ secrets.ACR_LOGIN_SERVER }}/epstein-frontend:latest
+          build-args: |
+            REACT_APP_API_URL=https://${{ env.API_APP_NAME }}.azurecontainerapps.io
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: ${{ github.event.inputs.environment || 'prod' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy API Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppName: ${{ env.API_APP_NAME }}
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/epstein-api:${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Deploy Frontend Container App
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppName: ${{ env.FRONTEND_APP_NAME }}
+          imageToDeploy: ${{ secrets.ACR_LOGIN_SERVER }}/epstein-frontend:${{ needs.build-and-push.outputs.image-tag }}
+
+      - name: Verify API health
+        run: |
+          echo "Waiting for API to become healthy..."
+          sleep 30
+          API_URL=$(az containerapp show -n ${{ env.API_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          curl -f "https://${API_URL}/health" || exit 1
+          echo "API is healthy!"
+
+      - name: Verify Frontend health
+        run: |
+          FRONTEND_URL=$(az containerapp show -n ${{ env.FRONTEND_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          curl -f "https://${FRONTEND_URL}" || exit 1
+          echo "Frontend is healthy!"
+
+      - name: Output deployment URLs
+        run: |
+          API_URL=$(az containerapp show -n ${{ env.API_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          FRONTEND_URL=$(az containerapp show -n ${{ env.FRONTEND_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **API:** https://${API_URL}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Frontend:** https://${FRONTEND_URL}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image Tag:** ${{ needs.build-and-push.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+
+  rollback:
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: failure()
+
+    steps:
+      - name: Login to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Rollback API to previous revision
+        run: |
+          echo "Deployment failed, rolling back..."
+          PREV_REVISION=$(az containerapp revision list -n ${{ env.API_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --query "[1].name" -o tsv)
+          if [ -n "$PREV_REVISION" ]; then
+            az containerapp revision activate -n ${{ env.API_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --revision $PREV_REVISION
+            echo "Rolled back API to $PREV_REVISION"
+          fi
+
+      - name: Rollback Frontend to previous revision
+        run: |
+          PREV_REVISION=$(az containerapp revision list -n ${{ env.FRONTEND_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --query "[1].name" -o tsv)
+          if [ -n "$PREV_REVISION" ]; then
+            az containerapp revision activate -n ${{ env.FRONTEND_APP_NAME }} -g ${{ env.RESOURCE_GROUP }} --revision $PREV_REVISION
+            echo "Rolled back Frontend to $PREV_REVISION"
+          fi

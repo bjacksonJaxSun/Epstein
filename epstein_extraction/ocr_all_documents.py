@@ -46,7 +46,10 @@ LOCAL_BASE = r'C:\Development\EpsteinDownloader'
 
 # Settings
 BATCH_SIZE = 50  # Documents to claim at a time
-NUM_WORKERS = 8  # Parallel OCR threads
+# Auto-detect optimal worker count based on CPU cores
+# Override with OCR_WORKERS environment variable if needed
+_cpu_count = os.cpu_count() or 4
+NUM_WORKERS = int(os.getenv('OCR_WORKERS', _cpu_count))
 TESSERACT_CONFIG = '--oem 1 --psm 3'
 MAX_IMAGES = None  # No limit - process ALL documents
 
@@ -153,11 +156,36 @@ def update_database(conn, results):
     return 0
 
 
+def get_dynamic_progress(cursor, range_clause="HAVING COUNT(*) = 1"):
+    """Get dynamic progress counts from database for accurate percentage calculation."""
+    # Count documents with OCR text (completed successfully)
+    cursor.execute('''
+        SELECT COUNT(*) FROM documents
+        WHERE full_text IS NOT NULL AND LENGTH(full_text) > 100
+    ''')
+    completed_with_text = cursor.fetchone()[0]
+
+    # Count documents still needing OCR (matching the range)
+    cursor.execute(f'''
+        SELECT COUNT(*) FROM documents d
+        WHERE (d.extraction_status IN ('partial', 'extracted', 'processing'))
+        AND (d.full_text IS NULL OR LENGTH(d.full_text) < 100)
+        AND d.document_id IN (
+            SELECT source_document_id FROM media_files
+            WHERE media_type = 'image'
+            GROUP BY source_document_id {range_clause}
+        )
+    ''')
+    remaining = cursor.fetchone()[0]
+
+    return completed_with_text, remaining
+
+
 def process_single_image_docs(conn, executor):
     """Phase 1: Process all single-image documents."""
     cursor = conn.cursor()
 
-    # Count total
+    # Count total (initial snapshot for logging)
     cursor.execute('''
         SELECT COUNT(*) FROM documents d
         WHERE (d.extraction_status = 'partial' OR d.extraction_status = 'extracted')
@@ -168,10 +196,10 @@ def process_single_image_docs(conn, executor):
             GROUP BY source_document_id HAVING COUNT(*) = 1
         )
     ''')
-    total_docs = cursor.fetchone()[0]
-    logger.info(f"Single-image documents needing OCR: {total_docs:,}")
+    initial_total = cursor.fetchone()[0]
+    logger.info(f"Single-image documents needing OCR: {initial_total:,}")
 
-    if total_docs == 0:
+    if initial_total == 0:
         return 0, 0
 
     start_time = time.time()
@@ -229,14 +257,18 @@ def process_single_image_docs(conn, executor):
         success_count += batch_success
         processed += len(docs)
 
-        # Progress report
+        # Progress report with dynamic counts
         elapsed = time.time() - start_time
         rate = processed / elapsed if elapsed > 0 else 0
-        remaining = total_docs - processed
+
+        # Get dynamic counts for accurate progress
+        completed_with_text, remaining = get_dynamic_progress(cursor, "HAVING COUNT(*) = 1")
+        total_work = completed_with_text + remaining
+        progress_pct = (100 * completed_with_text / total_work) if total_work > 0 else 100
         eta_min = (remaining / rate / 60) if rate > 0 else 0
 
         logger.info(
-            f"Single-image: {processed:,}/{total_docs:,} ({100*processed/total_docs:.1f}%) | "
+            f"Single-image: {remaining:,} remaining ({progress_pct:.1f}% complete) | "
             f"Success: {success_count:,} | Rate: {rate:.1f}/sec | ETA: {eta_min:.0f}min"
         )
 
@@ -255,7 +287,7 @@ def process_multi_image_docs(conn, executor, min_images=2, max_images=None):
         range_clause = f"HAVING COUNT(*) >= {min_images}"
         range_name = f"{min_images}+ images"
 
-    # Count total
+    # Count initial total (snapshot for logging)
     cursor.execute(f'''
         SELECT COUNT(*) FROM documents d
         WHERE (d.extraction_status = 'partial' OR d.extraction_status = 'extracted')
@@ -266,10 +298,10 @@ def process_multi_image_docs(conn, executor, min_images=2, max_images=None):
             GROUP BY source_document_id {range_clause}
         )
     ''')
-    total_docs = cursor.fetchone()[0]
-    logger.info(f"Documents with {range_name} needing OCR: {total_docs:,}")
+    initial_total = cursor.fetchone()[0]
+    logger.info(f"Documents with {range_name} needing OCR: {initial_total:,}")
 
-    if total_docs == 0:
+    if initial_total == 0:
         return 0, 0
 
     start_time = time.time()
@@ -331,14 +363,18 @@ def process_multi_image_docs(conn, executor, min_images=2, max_images=None):
         success_count += batch_success
         processed += len(docs_with_images)
 
-        # Progress report
+        # Progress report with dynamic counts
         elapsed = time.time() - start_time
         rate = processed / elapsed if elapsed > 0 else 0
-        remaining = total_docs - processed
+
+        # Get dynamic counts for accurate progress
+        completed_with_text, remaining = get_dynamic_progress(cursor, range_clause)
+        total_work = completed_with_text + remaining
+        progress_pct = (100 * completed_with_text / total_work) if total_work > 0 else 100
         eta_min = (remaining / rate / 60) if rate > 0 else 0
 
         logger.info(
-            f"{range_name}: {processed:,}/{total_docs:,} ({100*processed/total_docs:.1f}%) | "
+            f"{range_name}: {remaining:,} remaining ({progress_pct:.1f}% complete) | "
             f"Success: {success_count:,} | Rate: {rate:.1f}/sec | ETA: {eta_min:.0f}min"
         )
 

@@ -18,6 +18,7 @@ public class MediaFileDto
     public bool? IsExplicit { get; set; }
     public bool? IsSensitive { get; set; }
     public string? ClassificationLevel { get; set; }
+    public bool? IsLikelyPhoto { get; set; }
     public string? CreatedAt { get; set; }
     public long? SourceDocumentId { get; set; }
 }

@@ -36,6 +36,7 @@ public class MediaFileConfiguration : IEntityTypeConfiguration<MediaFile>
         builder.Property(e => e.IsExplicit).HasColumnName("is_explicit");
         builder.Property(e => e.IsSensitive).HasColumnName("is_sensitive");
         builder.Property(e => e.ClassificationLevel).HasColumnName("classification_level");
+        builder.Property(e => e.IsLikelyPhoto).HasColumnName("is_likely_photo");
         builder.Property(e => e.CreatedAt).HasColumnName("created_at");
         builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
 

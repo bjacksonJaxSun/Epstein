@@ -1,0 +1,30 @@
+[Unit]
+Description=Epstein Dashboard API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=azureuser
+Group=azureuser
+WorkingDirectory=/home/azureuser/EpsteinDownloader/dashboard/backend/publish
+ExecStart=/usr/bin/dotnet /home/azureuser/EpsteinDownloader/dashboard/backend/publish/EpsteinDashboard.Api.dll
+Restart=always
+RestartSec=10
+
+# Environment
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5000
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+# Logging
+StandardOutput=append:/var/log/epstein-dashboard.log
+StandardError=append:/var/log/epstein-dashboard.log
+
+# Security
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/log
+
+[Install]
+WantedBy=multi-user.target

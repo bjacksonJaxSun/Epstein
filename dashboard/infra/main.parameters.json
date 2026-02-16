@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environment": {
+      "value": "prod"
+    },
+    "postgresAdminUser": {
+      "value": "epstein_admin"
+    },
+    "postgresAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/<subscription-id>/resourceGroups/epstein-rg/providers/Microsoft.KeyVault/vaults/epstein-kv-prod"
+        },
+        "secretName": "postgres-admin-password"
+      }
+    },
+    "jwtSecret": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/<subscription-id>/resourceGroups/epstein-rg/providers/Microsoft.KeyVault/vaults/epstein-kv-prod"
+        },
+        "secretName": "jwt-secret"
+      }
+    },
+    "containerRegistryLoginServer": {
+      "value": "epsteinacr.azurecr.io"
+    },
+    "containerRegistryUsername": {
+      "value": "epsteinacr"
+    },
+    "containerRegistryPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/<subscription-id>/resourceGroups/epstein-rg/providers/Microsoft.KeyVault/vaults/epstein-kv-prod"
+        },
+        "secretName": "acr-password"
+      }
+    },
+    "apiImageTag": {
+      "value": "latest"
+    },
+    "frontendImageTag": {
+      "value": "latest"
+    }
+  }
+}

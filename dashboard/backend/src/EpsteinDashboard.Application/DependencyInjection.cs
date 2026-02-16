@@ -15,6 +15,9 @@ public static class DependencyInjection
         services.AddScoped<FinancialAnalysisService>();
         services.AddScoped<IExportService, ExportService>();
 
+        // Authentication services
+        services.AddScoped<IAuthService, AuthService>();
+
         return services;
     }
 }

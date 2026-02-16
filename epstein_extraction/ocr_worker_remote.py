@@ -44,7 +44,10 @@ LOCAL_BASE = r'C:\Development\EpsteinDownloader'
 
 # Settings
 BATCH_SIZE = 100
-NUM_WORKERS = 8
+# Auto-detect optimal worker count based on CPU cores
+# Override with OCR_WORKERS environment variable if needed
+_cpu_count = os.cpu_count() or 4
+NUM_WORKERS = int(os.getenv('OCR_WORKERS', _cpu_count))
 TESSERACT_CONFIG = '--oem 1 --psm 3'
 
 
@@ -92,6 +95,31 @@ def extract_page_order(filename):
     if match:
         return (int(match.group(1)), int(match.group(2)))
     return (0, 0)
+
+
+def get_dynamic_progress(cursor, range_clause="HAVING COUNT(*) = 1"):
+    """Get dynamic progress counts from database for accurate percentage calculation."""
+    # Count documents with OCR text (completed successfully)
+    cursor.execute('''
+        SELECT COUNT(*) FROM documents
+        WHERE full_text IS NOT NULL AND LENGTH(full_text) > 100
+    ''')
+    completed_with_text = cursor.fetchone()[0]
+
+    # Count documents still needing OCR (matching the range)
+    cursor.execute(f'''
+        SELECT COUNT(*) FROM documents d
+        WHERE (d.extraction_status IN ('partial', 'extracted', 'processing'))
+        AND (d.full_text IS NULL OR LENGTH(d.full_text) < 100)
+        AND d.document_id IN (
+            SELECT source_document_id FROM media_files
+            WHERE media_type = 'image'
+            GROUP BY source_document_id {range_clause}
+        )
+    ''')
+    remaining = cursor.fetchone()[0]
+
+    return completed_with_text, remaining
 
 
 def ocr_multi_doc(args):
@@ -252,14 +280,18 @@ def main():
 
                 processed += len(docs)
 
-                # Progress report
+                # Progress report with dynamic counts
                 elapsed = time.time() - start_time
                 rate = processed / elapsed if elapsed > 0 else 0
-                remaining = total_docs - processed
+
+                # Get dynamic counts for accurate progress
+                completed_with_text, remaining = get_dynamic_progress(cursor, "HAVING COUNT(*) = 1")
+                total_work = completed_with_text + remaining
+                progress_pct = (100 * completed_with_text / total_work) if total_work > 0 else 100
                 eta_min = (remaining / rate / 60) if rate > 0 else 0
 
                 logger.info(
-                    f"Progress: {processed:,}/{total_docs:,} ({100*processed/total_docs:.1f}%) | "
+                    f"Progress: {remaining:,} remaining ({progress_pct:.1f}% complete) | "
                     f"Success: {success_count:,} | Rate: {rate:.1f}/sec | ETA: {eta_min:.0f}min"
                 )
 
@@ -372,14 +404,20 @@ def main():
 
             phase2_processed += len(docs_with_images)
 
-            # Progress report
+            # Progress report with dynamic counts
             elapsed = time.time() - start_time
             rate = phase2_processed / elapsed if elapsed > 0 else 0
-            remaining = multi_count - phase2_processed
+
+            # Get dynamic counts for accurate progress
+            completed_with_text, remaining = get_dynamic_progress(
+                cursor, f"HAVING COUNT(*) > 1 AND COUNT(*) <= {MAX_IMAGES}"
+            )
+            total_work = completed_with_text + remaining
+            progress_pct = (100 * completed_with_text / total_work) if total_work > 0 else 100
             eta_min = (remaining / rate / 60) if rate > 0 else 0
 
             logger.info(
-                f"Multi-image: {phase2_processed:,}/{multi_count:,} ({100*phase2_processed/max(multi_count,1):.1f}%) | "
+                f"Multi-image: {remaining:,} remaining ({progress_pct:.1f}% complete) | "
                 f"Success: {phase2_success:,} | Rate: {rate:.1f}/sec | ETA: {eta_min:.0f}min"
             )
 

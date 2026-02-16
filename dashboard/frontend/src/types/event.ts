@@ -12,4 +12,5 @@ export interface TimelineEvent {
   confidenceLevel?: string;
   verificationStatus?: string;
   participantNames?: string[];
+  notes?: string;
 }

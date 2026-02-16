@@ -23,3 +23,4 @@ export {
   useLocationTypes,
   useGeoLocatedCount,
 } from './useLocations';
+export { useLogin, useLogout, useCurrentUser, useRequireAuth } from './useAuth';

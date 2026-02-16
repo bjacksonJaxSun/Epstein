@@ -1,0 +1,96 @@
+# Production Docker Compose for Azure Container Apps
+# This file is used for local testing of the production configuration
+# and as a reference for the container builds.
+#
+# Build and push images:
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml push
+#
+# For Azure Container Apps, nginx is not needed - ingress is handled by the platform.
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-epsteinacr.azurecr.io}/epstein-api:${TAG:-latest}
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5000
+      # These are set via Azure Container Apps secrets in production
+      - ConnectionStrings__EpsteinDb=${POSTGRES_CONNECTION_STRING:-Host=localhost;Database=epstein_documents;Username=epstein_user;Password=changeme}
+      - Jwt__Secret=${JWT_SECRET:-dev-secret-min-32-characters-long!}
+      - Jwt__Issuer=EpsteinDashboard
+      - Jwt__Audience=EpsteinDashboardUsers
+      - Jwt__AccessTokenExpirationMinutes=15
+      - Jwt__RefreshTokenExpirationDays=7
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 512M
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - REACT_APP_API_URL=${API_URL:-http://localhost:5000}
+    image: ${REGISTRY:-epsteinacr.azurecr.io}/epstein-frontend:${TAG:-latest}
+    ports:
+      - "80:80"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+    depends_on:
+      api:
+        condition: service_healthy
+
+# For local development/testing with postgres
+  postgres:
+    image: postgres:14-alpine
+    profiles:
+      - local
+    environment:
+      - POSTGRES_DB=epstein_documents
+      - POSTGRES_USER=epstein_user
+      - POSTGRES_PASSWORD=epstein_secure_pw_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U epstein_user -d epstein_documents"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+
+networks:
+  default:
+    name: epstein-network

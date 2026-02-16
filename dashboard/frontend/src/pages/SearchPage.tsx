@@ -87,8 +87,6 @@ function DocumentSearchResults({
     staleTime: 30_000,
   });
 
-  const navigate = useNavigate();
-
   const openDocument = useCallback((documentId: number) => {
     window.open(`/api/documents/${documentId}/file`, '_blank');
   }, []);

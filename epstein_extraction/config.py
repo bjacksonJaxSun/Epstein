@@ -130,11 +130,19 @@ logger.add(
 # ============================================
 # DATABASE ENGINE & SESSION
 # ============================================
+# Pool configuration optimized for high concurrency (2000+ users)
+# When using Azure PostgreSQL with PgBouncer, these settings work with the pooler
+POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "50"))  # Base pool size
+MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "100"))  # Additional connections when needed
+POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "300"))  # Recycle connections every 5 minutes
+
 engine = create_engine(
     DATABASE_URL,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=POOL_SIZE,
+    max_overflow=MAX_OVERFLOW,
     pool_pre_ping=True,  # Verify connections before using
+    pool_recycle=POOL_RECYCLE,  # Recycle stale connections
+    pool_timeout=30,  # Wait 30s for connection from pool
     echo=False  # Set to True for SQL query logging
 )
 

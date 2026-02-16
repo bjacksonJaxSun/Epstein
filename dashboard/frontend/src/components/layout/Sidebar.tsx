@@ -17,38 +17,75 @@ import {
   Sparkles,
   Settings,
   Eye,
+  Lock,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { hasMinimumTier, type RoleTier } from '@/types/auth';
 
 interface NavItem {
   icon: typeof LayoutDashboard;
   label: string;
   path: string;
+  minTier?: RoleTier;
 }
 
 const mainNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Overview', path: '/' },
-  { icon: Users, label: 'People', path: '/people' },
-  { icon: Building2, label: 'Organizations', path: '/organizations' },
-  { icon: GitBranch, label: 'Network', path: '/network' },
-  { icon: Calendar, label: 'Timeline', path: '/timeline' },
-  { icon: DollarSign, label: 'Financial', path: '/financial' },
-  { icon: FileText, label: 'Documents', path: '/documents' },
-  { icon: Image, label: 'Media', path: '/media' },
-  { icon: MapPin, label: 'Map', path: '/map' },
-  { icon: MessageSquare, label: 'Communications', path: '/communications' },
-  { icon: Clipboard, label: 'Evidence', path: '/evidence' },
+  { icon: LayoutDashboard, label: 'Overview', path: '/', minTier: 'freemium' },
+  { icon: Users, label: 'People', path: '/people', minTier: 'basic' },
+  { icon: Building2, label: 'Organizations', path: '/organizations', minTier: 'basic' },
+  { icon: GitBranch, label: 'Network', path: '/network', minTier: 'basic' },
+  { icon: Calendar, label: 'Timeline', path: '/timeline', minTier: 'basic' },
+  { icon: DollarSign, label: 'Financial', path: '/financial', minTier: 'basic' },
+  { icon: FileText, label: 'Documents', path: '/documents', minTier: 'basic' },
+  { icon: Image, label: 'Media', path: '/media', minTier: 'basic' },
+  { icon: MapPin, label: 'Map', path: '/map', minTier: 'basic' },
+  { icon: MessageSquare, label: 'Communications', path: '/communications', minTier: 'basic' },
+  { icon: Clipboard, label: 'Evidence', path: '/evidence', minTier: 'basic' },
 ];
 
 const secondaryNavItems: NavItem[] = [
-  { icon: Layout, label: 'Boards', path: '/boards' },
-  { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks' },
-  { icon: Eye, label: 'Vision Analysis', path: '/vision' },
-  { icon: Sparkles, label: 'AI Insights', path: '/ai-insights' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
+  { icon: Layout, label: 'Boards', path: '/boards', minTier: 'basic' },
+  { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks', minTier: 'basic' },
+  { icon: Eye, label: 'Vision Analysis', path: '/vision', minTier: 'premium' },
+  { icon: Sparkles, label: 'AI Insights', path: '/ai-insights', minTier: 'premium' },
+  { icon: Activity, label: 'Pipeline', path: '/pipeline', minTier: 'admin' },
+  { icon: Settings, label: 'Settings', path: '/settings', minTier: 'freemium' },
 ];
 
-function SidebarLink({ item, expanded }: { item: NavItem; expanded: boolean }) {
+function SidebarLink({
+  item,
+  expanded,
+  hasAccess,
+}: {
+  item: NavItem;
+  expanded: boolean;
+  hasAccess: boolean;
+}) {
+  if (!hasAccess) {
+    return (
+      <div
+        className={cn(
+          'group relative flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium',
+          'cursor-not-allowed text-text-disabled opacity-50'
+        )}
+        title={`Requires ${item.minTier} tier or higher`}
+      >
+        <item.icon className="h-5 w-5 shrink-0" />
+        <span
+          className={cn(
+            'flex items-center gap-2 whitespace-nowrap transition-all duration-200',
+            expanded ? 'opacity-100' : 'w-0 overflow-hidden opacity-0'
+          )}
+        >
+          {item.label}
+          <Lock className="h-3 w-3" />
+        </span>
+      </div>
+    );
+  }
+
   return (
     <NavLink
       to={item.path}
@@ -78,6 +115,11 @@ function SidebarLink({ item, expanded }: { item: NavItem; expanded: boolean }) {
 
 export function Sidebar() {
   const [expanded, setExpanded] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const userTier = user?.maxTierLevel ?? 0;
+
+  const canAccess = (minTier: RoleTier = 'freemium') =>
+    hasMinimumTier(userTier, minTier);
 
   return (
     <aside
@@ -106,14 +148,24 @@ export function Sidebar() {
       {/* Main nav */}
       <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-3">
         {mainNavItems.map((item) => (
-          <SidebarLink key={item.path} item={item} expanded={expanded} />
+          <SidebarLink
+            key={item.path}
+            item={item}
+            expanded={expanded}
+            hasAccess={canAccess(item.minTier)}
+          />
         ))}
 
         {/* Separator */}
         <div className="my-2 border-t border-border-subtle" />
 
         {secondaryNavItems.map((item) => (
-          <SidebarLink key={item.path} item={item} expanded={expanded} />
+          <SidebarLink
+            key={item.path}
+            item={item}
+            expanded={expanded}
+            hasAccess={canAccess(item.minTier)}
+          />
         ))}
       </nav>
     </aside>

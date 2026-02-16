@@ -86,6 +86,24 @@ public class MediaController : ControllerBase
         return Ok(_mapper.Map<IReadOnlyList<ImageAnalysisDto>>(analyses));
     }
 
+    [HttpGet("{id:long}/nearest")]
+    public async Task<ActionResult<object>> GetNearestMedia(
+        long id,
+        [FromQuery] string? mediaType = null,
+        [FromQuery] bool excludeDocumentScans = false,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var (nearestId, isExactMatch) = await _repository.FindNearestAsync(id, mediaType, excludeDocumentScans, cancellationToken);
+            return Ok(new { nearestId, isExactMatch });
+        }
+        catch (InvalidOperationException)
+        {
+            return NotFound("No media files found matching the current filters");
+        }
+    }
+
     [HttpGet("{id:long}/file")]
     public async Task<IActionResult> GetFile(long id, CancellationToken cancellationToken)
     {

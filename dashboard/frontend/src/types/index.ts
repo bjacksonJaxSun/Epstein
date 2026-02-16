@@ -13,3 +13,5 @@ export type { NetworkGraph, NetworkNode, NetworkEdge } from './network';
 export type { SearchResult, EntitySearchResult, ChunkSearchResult, ChunkSearchStats } from './search';
 export type { MediaFile } from './media';
 export type { DashboardStats } from './dashboard';
+export type { User, LoginRequest, LoginResponse, AuthError, RoleTier } from './auth';
+export { TIER_LEVELS, TIER_NAMES, getTierName, hasMinimumTier } from './auth';

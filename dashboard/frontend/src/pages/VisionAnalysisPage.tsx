@@ -6,7 +6,6 @@ import {
   FileText,
   Camera,
   PenTool,
-  Stamp,
   FileSignature,
   Loader2,
   AlertCircle,

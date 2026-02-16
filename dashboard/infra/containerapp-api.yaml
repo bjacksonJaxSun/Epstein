@@ -1,0 +1,105 @@
+# Azure Container Apps configuration for API
+# Deploy: az containerapp create -n epstein-prod-api -g epstein-rg --yaml containerapp-api.yaml
+
+properties:
+  managedEnvironmentId: /subscriptions/<subscription-id>/resourceGroups/epstein-rg/providers/Microsoft.App/managedEnvironments/epstein-prod-env
+
+  configuration:
+    activeRevisionsMode: Single
+
+    ingress:
+      external: true
+      targetPort: 5000
+      transport: auto
+      allowInsecure: false
+      traffic:
+        - latestRevision: true
+          weight: 100
+      corsPolicy:
+        allowedOrigins:
+          - "*"
+        allowedMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        allowedHeaders:
+          - "*"
+        allowCredentials: true
+        maxAge: 3600
+
+    secrets:
+      - name: postgres-connection
+        value: "<connection-string>"
+      - name: jwt-secret
+        value: "<jwt-secret>"
+      - name: registry-password
+        value: "<acr-password>"
+
+    registries:
+      - server: epsteinacr.azurecr.io
+        username: epsteinacr
+        passwordSecretRef: registry-password
+
+  template:
+    containers:
+      - name: api
+        image: epsteinacr.azurecr.io/epstein-api:latest
+        resources:
+          cpu: 0.5
+          memory: 1Gi
+        env:
+          - name: ASPNETCORE_ENVIRONMENT
+            value: Production
+          - name: ASPNETCORE_URLS
+            value: http://+:5000
+          - name: ConnectionStrings__EpsteinDb
+            secretRef: postgres-connection
+          - name: Jwt__Secret
+            secretRef: jwt-secret
+          - name: Jwt__Issuer
+            value: EpsteinDashboard
+          - name: Jwt__Audience
+            value: EpsteinDashboardUsers
+          - name: Jwt__AccessTokenExpirationMinutes
+            value: "15"
+          - name: Jwt__RefreshTokenExpirationDays
+            value: "7"
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 3
+          - type: Readiness
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          - type: Startup
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 0
+            periodSeconds: 5
+            failureThreshold: 30
+
+    scale:
+      minReplicas: 0
+      maxReplicas: 10
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "100"
+        - name: cpu-scaling
+          custom:
+            type: cpu
+            metadata:
+              type: Utilization
+              value: "70"

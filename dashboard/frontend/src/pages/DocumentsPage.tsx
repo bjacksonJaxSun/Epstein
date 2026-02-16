@@ -173,7 +173,7 @@ export function DocumentsPage() {
               <TypeBadge type={result.documentType} />
             </div>
             <h4 className="mt-1 text-sm font-medium text-text-primary truncate">
-              {result.documentTitle ?? 'Untitled Document'}
+              {result.title ?? 'Untitled Document'}
             </h4>
             {result.documentDate && (
               <span className="mt-0.5 text-xs text-text-tertiary">

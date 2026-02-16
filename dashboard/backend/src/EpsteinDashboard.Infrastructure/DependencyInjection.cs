@@ -37,6 +37,10 @@ public static class DependencyInjection
         services.AddScoped<IMediaRepository, MediaRepository>();
         services.AddScoped<IEvidenceRepository, EvidenceRepository>();
 
+        // Authentication repositories
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
+
         // File resolution services
         services.AddSingleton<IMediaFileService, MediaFileService>();
 

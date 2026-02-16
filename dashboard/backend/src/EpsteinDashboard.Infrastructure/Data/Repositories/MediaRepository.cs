@@ -33,9 +33,9 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
         if (!string.IsNullOrEmpty(mediaType))
             query = query.Where(m => m.MediaType == mediaType);
 
-        // Filter out document scans (images extracted from PDFs)
+        // Filter to only show likely photos (excludes document scans)
         if (excludeDocumentScans)
-            query = query.Where(m => m.Caption == null || !m.Caption.StartsWith("Extracted from EFTA"));
+            query = query.Where(m => m.IsLikelyPhoto == true);
 
         var totalCount = await query.CountAsync(cancellationToken);
 
@@ -72,9 +72,9 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
         if (!string.IsNullOrEmpty(mediaType))
             query = query.Where(m => m.MediaType == mediaType);
 
-        // Filter out document scans (images extracted from PDFs)
+        // Filter to only show likely photos (excludes document scans)
         if (excludeDocumentScans)
-            query = query.Where(m => m.Caption == null || !m.Caption.StartsWith("Extracted from EFTA"));
+            query = query.Where(m => m.IsLikelyPhoto == true);
 
         // Default sort is by MediaFileId ascending
         query = query.OrderBy(m => m.MediaFileId);
@@ -102,5 +102,47 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
             TotalCount = totalCount,
             TotalPages = totalPages
         };
+    }
+
+    public async Task<(long NearestId, bool IsExactMatch)> FindNearestAsync(long id, string? mediaType = null, bool excludeDocumentScans = false, CancellationToken cancellationToken = default)
+    {
+        var query = DbSet.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(mediaType))
+            query = query.Where(m => m.MediaType == mediaType);
+
+        // Filter to only show likely photos (excludes document scans)
+        if (excludeDocumentScans)
+            query = query.Where(m => m.IsLikelyPhoto == true);
+
+        // Check if exact ID exists in the filtered set
+        var exactMatch = await query.AnyAsync(m => m.MediaFileId == id, cancellationToken);
+        if (exactMatch)
+            return (id, true);
+
+        // Find nearest ID - try the next ID first, then previous
+        var nextId = await query
+            .Where(m => m.MediaFileId > id)
+            .OrderBy(m => m.MediaFileId)
+            .Select(m => m.MediaFileId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var prevId = await query
+            .Where(m => m.MediaFileId < id)
+            .OrderByDescending(m => m.MediaFileId)
+            .Select(m => m.MediaFileId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Return the nearest one
+        if (nextId == 0 && prevId == 0)
+            throw new InvalidOperationException("No media files found matching the current filters");
+
+        if (nextId == 0)
+            return (prevId, false);
+        if (prevId == 0)
+            return (nextId, false);
+
+        // Return whichever is closer
+        return (id - prevId <= nextId - id) ? (prevId, false) : (nextId, false);
     }
 }

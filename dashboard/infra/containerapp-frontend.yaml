@@ -1,0 +1,59 @@
+# Azure Container Apps configuration for Frontend
+# Deploy: az containerapp create -n epstein-prod-frontend -g epstein-rg --yaml containerapp-frontend.yaml
+
+properties:
+  managedEnvironmentId: /subscriptions/<subscription-id>/resourceGroups/epstein-rg/providers/Microsoft.App/managedEnvironments/epstein-prod-env
+
+  configuration:
+    activeRevisionsMode: Single
+
+    ingress:
+      external: true
+      targetPort: 80
+      transport: auto
+      allowInsecure: false
+      traffic:
+        - latestRevision: true
+          weight: 100
+
+    secrets:
+      - name: registry-password
+        value: "<acr-password>"
+
+    registries:
+      - server: epsteinacr.azurecr.io
+        username: epsteinacr
+        passwordSecretRef: registry-password
+
+  template:
+    containers:
+      - name: frontend
+        image: epsteinacr.azurecr.io/epstein-frontend:latest
+        resources:
+          cpu: 0.25
+          memory: 0.5Gi
+        env:
+          - name: REACT_APP_API_URL
+            value: https://epstein-prod-api.azurecontainerapps.io
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          - type: Readiness
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+
+    scale:
+      minReplicas: 0
+      maxReplicas: 5
+      rules:
+        - name: http-scaling
+          http:
+            metadata:
+              concurrentRequests: "200"

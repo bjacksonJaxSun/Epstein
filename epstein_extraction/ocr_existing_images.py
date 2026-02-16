@@ -32,7 +32,10 @@ PG_CONN = {
 BATCH_SIZE = 100
 LOG_INTERVAL = 100
 MAX_IMAGES_PER_DOC = 50
-NUM_WORKERS = 8
+# Auto-detect optimal worker count based on CPU cores
+# Override with OCR_WORKERS environment variable if needed
+_cpu_count = os.cpu_count() or 4
+NUM_WORKERS = int(os.getenv('OCR_WORKERS', _cpu_count))
 
 # Tesseract config
 TESSERACT_CONFIG = '--oem 1 --psm 3'
