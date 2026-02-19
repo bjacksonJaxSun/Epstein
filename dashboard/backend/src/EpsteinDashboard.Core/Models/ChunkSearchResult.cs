@@ -37,4 +37,5 @@ public class ChunkSearchRequest
     public bool IncludeContext { get; set; } = true;
     public bool UseVectorSearch { get; set; } = false;
     public int? MaxChunksPerDocument { get; set; }
+    public float[]? QueryEmbedding { get; set; }
 }

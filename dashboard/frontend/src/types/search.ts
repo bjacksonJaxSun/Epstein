@@ -33,6 +33,7 @@ export interface ChunkSearchResult {
   documentTitle?: string;
   documentDate?: string;
   documentType?: string;
+  filePath?: string;
 }
 
 export interface ChunkSearchStats {

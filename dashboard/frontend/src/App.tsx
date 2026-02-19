@@ -20,12 +20,14 @@ import {
   BoardsPage,
   BookmarksPage,
   AIInsightsPage,
+  AIChatPage,
   SearchPage,
   SettingsPage,
   VisionAnalysisPage,
   PipelinePage,
   LoginPage,
   UnauthorizedPage,
+  LandingPage,
 } from './pages';
 
 const queryClient = new QueryClient({
@@ -43,6 +45,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
+          <Route path="/welcome" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
@@ -75,6 +78,7 @@ export default function App() {
               {/* Premium tier - AI features */}
               <Route element={<ProtectedRoute minTier="premium" />}>
                 <Route path="ai-insights" element={<AIInsightsPage />} />
+                <Route path="ai-chat" element={<AIChatPage />} />
                 <Route path="vision" element={<VisionAnalysisPage />} />
               </Route>
 

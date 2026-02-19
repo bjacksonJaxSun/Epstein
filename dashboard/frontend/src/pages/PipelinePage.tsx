@@ -30,6 +30,7 @@ interface PipelineStatus {
   importStatus: ProcessStatus;
   ocrStatus: ProcessStatus;
   imageExtractionStatus: ProcessStatus;
+transcriptionStatus?: ProcessStatus;  totalMediaFiles?: number;  mediaFilesTranscribed?: number;
   apiStatus: ServiceStatus;
   databaseStatus: ServiceStatus;
 }
@@ -147,7 +148,7 @@ function StatCard({
         </div>
         <div>
           <p className="text-xs text-text-tertiary uppercase tracking-wider">{label}</p>
-          <p className="text-xl font-semibold text-text-primary">{value.toLocaleString()}</p>
+          <p className="text-xl font-semibold text-text-primary">{(value ?? 0).toLocaleString()}</p>
           {subValue && <p className="text-xs text-text-tertiary">{subValue}</p>}
         </div>
       </div>
@@ -164,6 +165,9 @@ function ProcessCard({
   title: string;
   status: ProcessStatus;
 }) {
+  if (!status) {
+    return null;
+  }
   const hasProgress = status.percentComplete !== undefined && status.percentComplete > 0;
 
   return (
@@ -193,8 +197,8 @@ function ProcessCard({
           <div>
             <span className="text-text-tertiary">Processed:</span>
             <span className="ml-1 text-text-primary">
-              {status.processedDocuments.toLocaleString()}
-              {status.totalDocuments ? ` / ${status.totalDocuments.toLocaleString()}` : ''}
+              {(status.processedDocuments ?? 0).toLocaleString()}
+              {status.totalDocuments ? ` / ${(status.totalDocuments ?? 0).toLocaleString()}` : ''}
             </span>
           </div>
         )}
@@ -202,57 +206,57 @@ function ProcessCard({
           <div>
             <span className="text-text-tertiary">Chunks:</span>
             <span className="ml-1 text-text-primary">
-              {status.processedChunks.toLocaleString()}
-              {status.totalChunks ? ` / ${status.totalChunks.toLocaleString()}` : ''}
+              {(status.processedChunks ?? 0).toLocaleString()}
+              {status.totalChunks ? ` / ${(status.totalChunks ?? 0).toLocaleString()}` : ''}
             </span>
           </div>
         )}
         {status.successCount !== undefined && (
           <div>
             <span className="text-text-tertiary">Success:</span>
-            <span className="ml-1 text-green-400">{status.successCount.toLocaleString()}</span>
+            <span className="ml-1 text-green-400">{(status.successCount ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.failedCount !== undefined && status.failedCount > 0 && (
           <div>
             <span className="text-text-tertiary">Failed:</span>
-            <span className="ml-1 text-red-400">{status.failedCount.toLocaleString()}</span>
+            <span className="ml-1 text-red-400">{(status.failedCount ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.imagesExtracted !== undefined && (
           <div>
             <span className="text-text-tertiary">Images:</span>
-            <span className="ml-1 text-text-primary">{status.imagesExtracted.toLocaleString()}</span>
+            <span className="ml-1 text-text-primary">{(status.imagesExtracted ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.docsWithImages !== undefined && (
           <div>
             <span className="text-text-tertiary">Docs w/ images:</span>
-            <span className="ml-1 text-text-primary">{status.docsWithImages.toLocaleString()}</span>
+            <span className="ml-1 text-text-primary">{(status.docsWithImages ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.filesDownloaded !== undefined && (
           <div>
             <span className="text-text-tertiary">Downloaded:</span>
-            <span className="ml-1 text-text-primary">{status.filesDownloaded.toLocaleString()}</span>
+            <span className="ml-1 text-text-primary">{(status.filesDownloaded ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.filesErrored !== undefined && status.filesErrored > 0 && (
           <div>
             <span className="text-text-tertiary">Errors:</span>
-            <span className="ml-1 text-red-400">{status.filesErrored.toLocaleString()}</span>
+            <span className="ml-1 text-red-400">{(status.filesErrored ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.importedCount !== undefined && (
           <div>
             <span className="text-text-tertiary">Imported:</span>
-            <span className="ml-1 text-text-primary">{status.importedCount.toLocaleString()}</span>
+            <span className="ml-1 text-text-primary">{(status.importedCount ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.skippedCount !== undefined && (
           <div>
             <span className="text-text-tertiary">Skipped:</span>
-            <span className="ml-1 text-text-tertiary">{status.skippedCount.toLocaleString()}</span>
+            <span className="ml-1 text-text-tertiary">{(status.skippedCount ?? 0).toLocaleString()}</span>
           </div>
         )}
         {status.docsPerMinute !== undefined && status.docsPerMinute > 0 && (
@@ -338,6 +342,7 @@ export function PipelinePage() {
           subValue={`${((status.documentsWithText / status.totalDocuments) * 100).toFixed(1)}%`}
         />
         <StatCard icon={Eye} label="Need OCR" value={status.documentsNeedingOcr} />
+<StatCard icon={Image} label="Media Files" value={status.totalMediaFiles || 0} />        <StatCard icon={CheckCircle} label="Transcribed" value={status.mediaFilesTranscribed || 0} />
         <StatCard icon={Database} label="Chunks" value={status.totalChunks} />
         <StatCard
           icon={Cpu}
@@ -354,10 +359,10 @@ export function PipelinePage() {
           <div className="flex items-center gap-2 mb-3">
             <Server className="h-5 w-5 text-text-secondary" />
             <h3 className="font-medium text-text-primary">API Server</h3>
-            <StatusBadge status={status.apiStatus.status} />
+            <StatusBadge status={(status.apiStatus?.status ?? 'unknown')} />
           </div>
           <div className="text-sm text-text-tertiary">
-            Uptime: {status.apiStatus.uptime ? formatUptime(status.apiStatus.uptime) : 'N/A'}
+            Uptime: {(status.apiStatus?.uptime ?? 0) ? formatUptime((status.apiStatus?.uptime ?? 0)) : 'N/A'}
           </div>
         </div>
 
@@ -365,10 +370,10 @@ export function PipelinePage() {
           <div className="flex items-center gap-2 mb-3">
             <HardDrive className="h-5 w-5 text-text-secondary" />
             <h3 className="font-medium text-text-primary">Database</h3>
-            <StatusBadge status={status.databaseStatus.status} />
+            <StatusBadge status={(status.databaseStatus?.status ?? 'unknown')} />
           </div>
           <div className="text-sm text-text-tertiary">
-            Size: {status.databaseStatus.databaseSizeBytes ? formatBytes(status.databaseStatus.databaseSizeBytes) : 'N/A'}
+            Size: {(status.databaseStatus?.databaseSizeBytes ?? 0) ? formatBytes((status.databaseStatus?.databaseSizeBytes ?? 0)) : 'N/A'}
           </div>
         </div>
       </div>
@@ -378,6 +383,7 @@ export function PipelinePage() {
         <ProcessCard icon={Download} title="Download" status={status.downloadStatus} />
         <ProcessCard icon={Upload} title="Import" status={status.importStatus} />
         <ProcessCard icon={Eye} title="OCR" status={status.ocrStatus} />
+{status.transcriptionStatus && <ProcessCard icon={Cpu} title="Transcription" status={status.transcriptionStatus} />}
         <ProcessCard icon={Image} title="Image Extraction" status={status.imageExtractionStatus} />
         <ProcessCard icon={Cpu} title="Embeddings" status={status.embeddingStatus} />
       </div>

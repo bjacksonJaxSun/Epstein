@@ -19,6 +19,7 @@ import {
   Eye,
   Lock,
   Activity,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -50,6 +51,7 @@ const secondaryNavItems: NavItem[] = [
   { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks', minTier: 'basic' },
   { icon: Eye, label: 'Vision Analysis', path: '/vision', minTier: 'premium' },
   { icon: Sparkles, label: 'AI Insights', path: '/ai-insights', minTier: 'premium' },
+  { icon: Bot, label: 'AI Chat', path: '/ai-chat', minTier: 'premium' },
   { icon: Activity, label: 'Pipeline', path: '/pipeline', minTier: 'admin' },
   { icon: Settings, label: 'Settings', path: '/settings', minTier: 'freemium' },
 ];
