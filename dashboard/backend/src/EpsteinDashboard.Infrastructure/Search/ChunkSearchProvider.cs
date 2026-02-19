@@ -9,13 +9,16 @@ using Microsoft.Extensions.Logging;
 namespace EpsteinDashboard.Infrastructure.Search;
 
 /// <summary>
-/// Provides chunk-level search using FTS5 on document chunks.
-/// Enables context-preserving search results for RAG applications.
+/// Provides chunk-level semantic search using PostgreSQL full-text search
+/// and pgvector for vector similarity search on document chunks.
 /// </summary>
 public partial class ChunkSearchProvider : IChunkSearchService
 {
     private readonly string _connectionString;
     private readonly ILogger<ChunkSearchProvider> _logger;
+
+    // The stored embeddings use all-MiniLM-L6-v2 (384 dimensions)
+    private const int EmbeddingDimensions = 384;
 
     public ChunkSearchProvider(
         IConfiguration configuration,
@@ -34,7 +37,7 @@ public partial class ChunkSearchProvider : IChunkSearchService
             await connection.OpenAsync(cancellationToken);
 
             var exists = await connection.QuerySingleOrDefaultAsync<int>(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='document_chunks'");
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'document_chunks'");
 
             return exists > 0;
         }
@@ -51,23 +54,27 @@ public partial class ChunkSearchProvider : IChunkSearchService
 
         var stats = new ChunkSearchStats();
 
-        // Check table availability
         var chunksExist = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='document_chunks'");
-        var chunksFtsExist = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chunks_fts'");
-        var embeddingsExist = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chunk_embeddings'");
-
-        stats.FtsAvailable = chunksFtsExist > 0;
-        stats.VectorSearchAvailable = embeddingsExist > 0;
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'document_chunks'");
 
         if (chunksExist == 0)
         {
             return stats;
         }
 
-        // Get counts
+        stats.FtsAvailable = true; // PostgreSQL native FTS always available
+
+        // Check if pgvector extension is active and embeddings exist
+        var vectorExtInstalled = await connection.QuerySingleOrDefaultAsync<int>(
+            "SELECT COUNT(*) FROM pg_extension WHERE extname = 'vector'");
+        if (vectorExtInstalled > 0)
+        {
+            var embeddingCount = await connection.QuerySingleOrDefaultAsync<long>(
+                "SELECT COUNT(*) FROM document_chunks WHERE embedding_vector IS NOT NULL");
+            stats.VectorSearchAvailable = embeddingCount > 0;
+            stats.ChunksWithEmbeddings = embeddingCount;
+        }
+
         stats.TotalDocuments = await connection.QuerySingleAsync<long>(
             "SELECT COUNT(*) FROM documents");
 
@@ -82,12 +89,6 @@ public partial class ChunkSearchProvider : IChunkSearchService
             stats.AverageChunksPerDocument = (double)stats.TotalChunks / stats.DocumentsWithChunks;
         }
 
-        if (embeddingsExist > 0)
-        {
-            stats.ChunksWithEmbeddings = await connection.QuerySingleAsync<long>(
-                "SELECT COUNT(*) FROM chunk_embeddings");
-        }
-
         return stats;
     }
 
@@ -95,28 +96,87 @@ public partial class ChunkSearchProvider : IChunkSearchService
         ChunkSearchRequest request,
         CancellationToken cancellationToken = default)
     {
-        var sanitizedQuery = SanitizeFts5Query(request.Query);
-        if (string.IsNullOrWhiteSpace(sanitizedQuery))
-        {
-            return new PagedResult<ChunkSearchResult>
-            {
-                Items = Array.Empty<ChunkSearchResult>(),
-                TotalCount = 0,
-                Page = request.Page,
-                PageSize = request.PageSize
-            };
-        }
-
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
-        // Check if chunks FTS table exists
-        var ftsExists = await connection.QuerySingleOrDefaultAsync<int>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='chunks_fts'");
+        // Use vector search if embedding provided and dimensions match
+        bool useVector = request.UseVectorSearch
+            && request.QueryEmbedding != null
+            && request.QueryEmbedding.Length == EmbeddingDimensions;
 
-        if (ftsExists == 0)
+        if (useVector)
         {
-            _logger.LogWarning("Chunks FTS table not available. Run chunking migration first.");
+            _logger.LogInformation("Using pgvector similarity search for query: {Query}", request.Query);
+            return await SearchWithVector(connection, request, cancellationToken);
+        }
+
+        _logger.LogInformation("Using PostgreSQL full-text search for query: {Query}", request.Query);
+        return await SearchWithFts(connection, request, cancellationToken);
+    }
+
+    private async Task<PagedResult<ChunkSearchResult>> SearchWithVector(
+        NpgsqlConnection connection,
+        ChunkSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Format vector as PostgreSQL literal
+        var vectorLiteral = "[" + string.Join(",", request.QueryEmbedding!) + "]";
+
+        var filterConditions = new List<string> { "c.embedding_vector IS NOT NULL" };
+        var parameters = new DynamicParameters();
+        parameters.Add("PageSize", request.PageSize);
+        parameters.Add("Offset", request.Page * request.PageSize);
+
+        AddDateAndTypeFilters(request, filterConditions, parameters);
+
+        var filterClause = " WHERE " + string.Join(" AND ", filterConditions);
+
+        // Count - approximate for vector search (full count is expensive)
+        var totalCount = await connection.QuerySingleAsync<int>(
+            $"SELECT COUNT(*) FROM document_chunks c JOIN documents d ON d.document_id = c.document_id{filterClause}",
+            parameters);
+
+        var searchSql = $@"
+            SELECT
+                c.chunk_id::text AS ChunkId,
+                c.document_id AS DocumentId,
+                d.efta_number AS EftaNumber,
+                c.chunk_index AS ChunkIndex,
+                c.chunk_text AS ChunkText,
+                c.chunk_text AS Snippet,
+                NULL::int AS PageNumber,
+                false AS HasRedaction,
+                NULL::text AS PrecedingContext,
+                NULL::text AS FollowingContext,
+                (1 - (c.embedding_vector <=> '{vectorLiteral}'::vector))::float8 AS RelevanceScore,
+                d.document_title AS DocumentTitle,
+                d.document_date AS DocumentDate,
+                d.document_type AS DocumentType,
+                d.file_path AS FilePath
+            FROM document_chunks c
+            JOIN documents d ON d.document_id = c.document_id
+            {filterClause}
+            ORDER BY c.embedding_vector <=> '{vectorLiteral}'::vector
+            LIMIT @PageSize OFFSET @Offset";
+
+        var results = await connection.QueryAsync<ChunkSearchResult>(searchSql, parameters);
+
+        return new PagedResult<ChunkSearchResult>
+        {
+            Items = results.ToList(),
+            TotalCount = totalCount,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+    }
+
+    private async Task<PagedResult<ChunkSearchResult>> SearchWithFts(
+        NpgsqlConnection connection,
+        ChunkSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Query))
+        {
             return new PagedResult<ChunkSearchResult>
             {
                 Items = Array.Empty<ChunkSearchResult>(),
@@ -126,78 +186,49 @@ public partial class ChunkSearchProvider : IChunkSearchService
             };
         }
 
-        return await SearchWithChunkFts5(connection, request, sanitizedQuery, cancellationToken);
-    }
-
-    private async Task<PagedResult<ChunkSearchResult>> SearchWithChunkFts5(
-        NpgsqlConnection connection,
-        ChunkSearchRequest request,
-        string sanitizedQuery,
-        CancellationToken cancellationToken)
-    {
-        // Build filter conditions
-        var filterConditions = new List<string>();
+        var filterConditions = new List<string>
+        {
+            "to_tsvector('english', c.chunk_text) @@ plainto_tsquery('english', @Query)"
+        };
         var parameters = new DynamicParameters();
-        parameters.Add("Query", sanitizedQuery);
+        parameters.Add("Query", request.Query);
         parameters.Add("PageSize", request.PageSize);
         parameters.Add("Offset", request.Page * request.PageSize);
 
-        if (!string.IsNullOrEmpty(request.DateFrom))
-        {
-            filterConditions.Add("d.document_date >= @DateFrom");
-            parameters.Add("DateFrom", request.DateFrom);
-        }
-        if (!string.IsNullOrEmpty(request.DateTo))
-        {
-            filterConditions.Add("d.document_date <= @DateTo");
-            parameters.Add("DateTo", request.DateTo);
-        }
-        if (request.DocumentTypes?.Any() == true)
-        {
-            filterConditions.Add("d.document_type IN @DocumentTypes");
-            parameters.Add("DocumentTypes", request.DocumentTypes);
-        }
+        AddDateAndTypeFilters(request, filterConditions, parameters);
 
-        var filterClause = filterConditions.Count > 0
-            ? " AND " + string.Join(" AND ", filterConditions)
-            : "";
+        var filterClause = " WHERE " + string.Join(" AND ", filterConditions);
 
-        // Count query
         var countSql = $@"
             SELECT COUNT(*)
-            FROM chunks_fts
-            JOIN document_chunks c ON c.rowid = chunks_fts.rowid
+            FROM document_chunks c
             JOIN documents d ON d.document_id = c.document_id
-            WHERE chunks_fts MATCH @Query{filterClause}";
+            {filterClause}";
 
         var totalCount = await connection.QuerySingleAsync<int>(countSql, parameters);
 
-        // Select context columns based on request
-        var contextColumns = request.IncludeContext
-            ? "c.preceding_context AS PrecedingContext, c.following_context AS FollowingContext,"
-            : "";
-
-        // Search query with snippet highlighting
         var searchSql = $@"
             SELECT
-                c.chunk_id AS ChunkId,
+                c.chunk_id::text AS ChunkId,
                 c.document_id AS DocumentId,
-                c.efta_number AS EftaNumber,
+                d.efta_number AS EftaNumber,
                 c.chunk_index AS ChunkIndex,
                 c.chunk_text AS ChunkText,
-                snippet(chunks_fts, 2, '<mark>', '</mark>', '...', 64) AS Snippet,
-                c.page_number AS PageNumber,
-                c.has_redaction AS HasRedaction,
-                {contextColumns}
-                rank AS RelevanceScore,
+                ts_headline('english', c.chunk_text, plainto_tsquery('english', @Query),
+                    'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>') AS Snippet,
+                NULL::int AS PageNumber,
+                false AS HasRedaction,
+                NULL::text AS PrecedingContext,
+                NULL::text AS FollowingContext,
+                ts_rank(to_tsvector('english', c.chunk_text), plainto_tsquery('english', @Query))::float8 AS RelevanceScore,
                 d.document_title AS DocumentTitle,
                 d.document_date AS DocumentDate,
-                d.document_type AS DocumentType
-            FROM chunks_fts
-            JOIN document_chunks c ON c.rowid = chunks_fts.rowid
+                d.document_type AS DocumentType,
+                d.file_path AS FilePath
+            FROM document_chunks c
             JOIN documents d ON d.document_id = c.document_id
-            WHERE chunks_fts MATCH @Query{filterClause}
-            ORDER BY rank
+            {filterClause}
+            ORDER BY RelevanceScore DESC
             LIMIT @PageSize OFFSET @Offset";
 
         var results = await connection.QueryAsync<ChunkSearchResult>(searchSql, parameters);
@@ -220,19 +251,21 @@ public partial class ChunkSearchProvider : IChunkSearchService
 
         var sql = @"
             SELECT
-                c.chunk_id AS ChunkId,
+                c.chunk_id::text AS ChunkId,
                 c.document_id AS DocumentId,
-                c.efta_number AS EftaNumber,
+                d.efta_number AS EftaNumber,
                 c.chunk_index AS ChunkIndex,
                 c.chunk_text AS ChunkText,
-                c.page_number AS PageNumber,
-                c.has_redaction AS HasRedaction,
-                c.preceding_context AS PrecedingContext,
-                c.following_context AS FollowingContext,
-                1.0 AS RelevanceScore,
+                c.chunk_text AS Snippet,
+                NULL::int AS PageNumber,
+                false AS HasRedaction,
+                NULL::text AS PrecedingContext,
+                NULL::text AS FollowingContext,
+                1.0::float8 AS RelevanceScore,
                 d.document_title AS DocumentTitle,
                 d.document_date AS DocumentDate,
-                d.document_type AS DocumentType
+                d.document_type AS DocumentType,
+                d.file_path AS FilePath
             FROM document_chunks c
             JOIN documents d ON d.document_id = c.document_id
             WHERE c.document_id = @DocumentId
@@ -242,21 +275,26 @@ public partial class ChunkSearchProvider : IChunkSearchService
         return results.ToList();
     }
 
-    private static string SanitizeFts5Query(string query)
+    private static void AddDateAndTypeFilters(
+        ChunkSearchRequest request,
+        List<string> conditions,
+        DynamicParameters parameters)
     {
-        if (string.IsNullOrWhiteSpace(query)) return string.Empty;
-
-        // Remove special FTS5 characters
-        var sanitized = FtsSpecialCharsRegex().Replace(query, " ");
-
-        // Collapse whitespace
-        sanitized = MultipleSpacesRegex().Replace(sanitized.Trim(), " ");
-
-        if (string.IsNullOrWhiteSpace(sanitized)) return string.Empty;
-
-        // Wrap each word in quotes for exact matching
-        var words = sanitized.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return string.Join(" ", words.Select(w => $"\"{w}\""));
+        if (!string.IsNullOrEmpty(request.DateFrom))
+        {
+            conditions.Add("d.document_date >= @DateFrom");
+            parameters.Add("DateFrom", request.DateFrom);
+        }
+        if (!string.IsNullOrEmpty(request.DateTo))
+        {
+            conditions.Add("d.document_date <= @DateTo");
+            parameters.Add("DateTo", request.DateTo);
+        }
+        if (request.DocumentTypes?.Any() == true)
+        {
+            conditions.Add("d.document_type = ANY(@DocumentTypes)");
+            parameters.Add("DocumentTypes", request.DocumentTypes.ToArray());
+        }
     }
 
     [GeneratedRegex(@"[""'\(\)\*\:\;\!\?\+\-\^~\{\}\[\]\\\/]")]

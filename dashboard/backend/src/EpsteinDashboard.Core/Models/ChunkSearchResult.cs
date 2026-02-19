@@ -21,6 +21,7 @@ public class ChunkSearchResult
     public string? DocumentTitle { get; set; }
     public string? DocumentDate { get; set; }
     public string? DocumentType { get; set; }
+    public string? FilePath { get; set; }
 }
 
 /// <summary>
