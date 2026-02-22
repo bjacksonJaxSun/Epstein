@@ -15,7 +15,9 @@ Usage:
 import argparse
 import hashlib
 import io
+import multiprocessing
 import os
+import queue as queue_module
 import sys
 import threading
 import time
@@ -485,6 +487,44 @@ def process_pdf(
 # MAIN PROCESSING LOOP
 # ============================================
 
+def _worker_main(task_queue, result_queue, dataset_name, dataset_path_str, dry_run):
+    """Child process: processes PDFs one at a time via queues.
+
+    Runs in a separate process so PyMuPDF segfaults don't kill the main process.
+    """
+    dataset_path = Path(dataset_path_str)
+    s3_client = create_r2_client() if not dry_run else None
+    db_session = SessionLocal()
+    seen_checksums: set = set()
+
+    while True:
+        try:
+            pdf_path_str = task_queue.get(timeout=10)
+        except queue_module.Empty:
+            continue
+
+        if pdf_path_str is None:  # shutdown sentinel
+            db_session.close()
+            return
+
+        pdf_path = Path(pdf_path_str)
+        try:
+            stats = process_pdf(
+                pdf_path, dataset_name, dataset_path,
+                s3_client, db_session, dry_run, seen_checksums,
+            )
+            result_queue.put(('ok', stats))
+        except Exception as e:
+            try:
+                db_session.rollback()
+            except Exception:
+                pass
+            result_queue.put(('error', {
+                'photos_found': 0, 'docs_skipped': 0, 'uploaded': 0,
+                'errors': 1, 'skipped_small': 0, 'skipped_dup': 0,
+            }))
+
+
 def find_pdfs(dataset_path: Path) -> list[Path]:
     """Find all PDF files in a dataset directory, sorted by name."""
     pdfs = sorted(
@@ -554,35 +594,69 @@ def process_dataset(
     logger.info(f"Processing {len(pdfs)} PDFs from {dataset_name} (dry_run={dry_run}, workers={workers})")
 
     if workers <= 1:
-        # Sequential processing
-        db_session = SessionLocal()
-        try:
-            for i, pdf_path in enumerate(pdfs):
-                stats = process_pdf(
-                    pdf_path, dataset_name, dataset_path,
-                    s3_client, db_session, dry_run, seen_checksums,
+        # Sequential processing via crash-isolated child process.
+        # PyMuPDF can segfault on corrupt PDFs; running it in a child process
+        # means a segfault kills only the child, not the whole run.
+        task_queue = multiprocessing.Queue()
+        result_queue = multiprocessing.Queue()
+
+        def start_worker():
+            p = multiprocessing.Process(
+                target=_worker_main,
+                args=(task_queue, result_queue, dataset_name, str(dataset_path), dry_run),
+                daemon=True,
+            )
+            p.start()
+            return p
+
+        worker = start_worker()
+
+        for i, pdf_path in enumerate(pdfs):
+            # Restart worker if it died (segfault from previous PDF)
+            if not worker.is_alive():
+                logger.warning(f"Worker died (exit {worker.exitcode}), restarting for {pdf_path.name}")
+                worker = start_worker()
+
+            task_queue.put(str(pdf_path))
+
+            # Wait for result; if worker crashes during processing, detect via timeout
+            try:
+                status, stats = result_queue.get(timeout=300)
+            except queue_module.Empty:
+                if not worker.is_alive():
+                    logger.error(f"Worker segfaulted on {pdf_path.name} (exit {worker.exitcode}), skipping")
+                    worker = start_worker()
+                    stats = {'photos_found': 0, 'docs_skipped': 0, 'uploaded': 0,
+                             'errors': 1, 'skipped_small': 0, 'skipped_dup': 0}
+                else:
+                    logger.warning(f"Timeout waiting for result from {pdf_path.name}, skipping")
+                    stats = {'photos_found': 0, 'docs_skipped': 0, 'uploaded': 0,
+                             'errors': 1, 'skipped_small': 0, 'skipped_dup': 0}
+
+            # Accumulate stats
+            total_stats["pdfs_processed"] += 1
+            for key in ["photos_found", "docs_skipped", "uploaded", "errors", "skipped_small", "skipped_dup"]:
+                total_stats[key] += stats.get(key, 0)
+
+            # Progress log every 50 PDFs
+            if (i + 1) % 50 == 0 or (i + 1) == len(pdfs):
+                elapsed = time.time() - start_time
+                rate = total_stats["pdfs_processed"] / elapsed if elapsed > 0 else 0
+                logger.info(
+                    f"Progress: {i + 1}/{len(pdfs)} PDFs "
+                    f"({rate:.1f}/s) | "
+                    f"photos={total_stats['photos_found']} "
+                    f"uploaded={total_stats['uploaded']} "
+                    f"docs_skipped={total_stats['docs_skipped']} "
+                    f"dups={total_stats['skipped_dup']} "
+                    f"errors={total_stats['errors']}"
                 )
 
-                # Accumulate stats
-                total_stats["pdfs_processed"] += 1
-                for key in ["photos_found", "docs_skipped", "uploaded", "errors", "skipped_small", "skipped_dup"]:
-                    total_stats[key] += stats.get(key, 0)
-
-                # Progress log every 50 PDFs
-                if (i + 1) % 50 == 0 or (i + 1) == len(pdfs):
-                    elapsed = time.time() - start_time
-                    rate = total_stats["pdfs_processed"] / elapsed if elapsed > 0 else 0
-                    logger.info(
-                        f"Progress: {i + 1}/{len(pdfs)} PDFs "
-                        f"({rate:.1f}/s) | "
-                        f"photos={total_stats['photos_found']} "
-                        f"uploaded={total_stats['uploaded']} "
-                        f"docs_skipped={total_stats['docs_skipped']} "
-                        f"dups={total_stats['skipped_dup']} "
-                        f"errors={total_stats['errors']}"
-                    )
-        finally:
-            db_session.close()
+        # Shut down worker gracefully
+        task_queue.put(None)
+        worker.join(timeout=10)
+        if worker.is_alive():
+            worker.terminate()
     else:
         # Parallel processing with thread pool
         # Each worker gets its own DB session; shared set guarded by lock
