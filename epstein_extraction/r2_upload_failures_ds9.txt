@@ -1,0 +1,152 @@
+EFTA00039208	age_gate_or_html
+EFTA00067513	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00067525	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067514	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067529	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067516	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067584	read_error: RemoteIOError
+EFTA00067520	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00067577	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067580	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067594	read_error: RemoteIOError
+EFTA00067542	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067573	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067531	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067589	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067590	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067593	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067582	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067596	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00067602	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067585	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067591	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00067603	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067597	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067600	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067607	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067645	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067605	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067701	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067620	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067862	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067702	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067669	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067863	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067866	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067752	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068040	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068037	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068035	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067869	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00067932	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068049	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068048	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00067870	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068042	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068080	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068083	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068081	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068082	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068050	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068078	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068096	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068103	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068100	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068090	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068085	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068109	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068104	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068101	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068118	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068119	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068107	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068116	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068360	read_error: RangeNotSupported
+EFTA00068120	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068110	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068128	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068133	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068131	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068206	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068137	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068144	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068176	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068134	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068207	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068215	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068230	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068228	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068233	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068246	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068248	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068250	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068264	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068255	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068266	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068273	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068284	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068295	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068268	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068280	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068288	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068297	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068306	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068333	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068315	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068310	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068324	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068331	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068337	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068361	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068346	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068364	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068334	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068365	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068362	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068383	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068374	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068391	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068384	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068378	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068386	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068388	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068400	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068403	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068404	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068392	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068405	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068394	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068407	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068406	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068408	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068409	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068416	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068410	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068439	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068440	ConnectTimeoutError: Connect timeout on endpoint URL: "https://f8370fa3403bc68c2a46a3ad87be970d.r2.cl
+EFTA00068417	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068414	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068429	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068442	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068431	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068444	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068446	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068458	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068451	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068460	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068453	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068474	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068462	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068491	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068492	ClientError: An error occurred (502) when calling the PutObject operation (reached max retrie
+EFTA00068468	ConnectionClosedError: Connection was closed before we received a valid response from endpoint URL: "ht
+EFTA00068476	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068470	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068484	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068479	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068493	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068499	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068520	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068501	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068529	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
+EFTA00068518	SSLError: SSL validation failed for https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflare
