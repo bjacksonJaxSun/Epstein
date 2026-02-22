@@ -22,4 +22,10 @@ public interface IMediaFileService
     /// Gets the configured search paths for media files.
     /// </summary>
     IReadOnlyList<string> SearchPaths { get; }
+
+    /// <summary>
+    /// Returns a pre-signed R2 URL for a media file, or null if R2 is not configured
+    /// or the path cannot be mapped to an R2 key.
+    /// </summary>
+    string? GetR2Url(string? storedPath);
 }

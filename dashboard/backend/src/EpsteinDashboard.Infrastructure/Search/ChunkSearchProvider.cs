@@ -186,9 +186,36 @@ public partial class ChunkSearchProvider : IChunkSearchService
             };
         }
 
+        // Try strict AND matching first (all terms must appear in chunk)
+        var result = await ExecuteFtsQuery(connection, request, useOrMatching: false);
+
+        // If AND returns 0 results, fall back to OR matching for better recall
+        if (result.TotalCount == 0)
+        {
+            _logger.LogInformation("AND FTS returned 0 results for '{Query}', falling back to OR matching",
+                request.Query);
+            result = await ExecuteFtsQuery(connection, request, useOrMatching: true);
+        }
+
+        return result;
+    }
+
+    private async Task<PagedResult<ChunkSearchResult>> ExecuteFtsQuery(
+        NpgsqlConnection connection,
+        ChunkSearchRequest request,
+        bool useOrMatching)
+    {
+        // plainto_tsquery safely parses the query into lexemes with AND logic.
+        // For OR matching, we convert the AND operators to OR in PostgreSQL:
+        //   "visit & littl & st & jame & island" → "visit | littl | st | jame | island"
+        // This is SQL-injection safe because plainto_tsquery handles the parsing.
+        var tsqueryExpr = useOrMatching
+            ? "replace(plainto_tsquery('english', @Query)::text, ' & ', ' | ')::tsquery"
+            : "plainto_tsquery('english', @Query)";
+
         var filterConditions = new List<string>
         {
-            "to_tsvector('english', c.chunk_text) @@ plainto_tsquery('english', @Query)"
+            $"to_tsvector('english', c.chunk_text) @@ {tsqueryExpr}"
         };
         var parameters = new DynamicParameters();
         parameters.Add("Query", request.Query);
@@ -214,13 +241,13 @@ public partial class ChunkSearchProvider : IChunkSearchService
                 d.efta_number AS EftaNumber,
                 c.chunk_index AS ChunkIndex,
                 c.chunk_text AS ChunkText,
-                ts_headline('english', c.chunk_text, plainto_tsquery('english', @Query),
+                ts_headline('english', c.chunk_text, {tsqueryExpr},
                     'MaxWords=50, MinWords=20, StartSel=<mark>, StopSel=</mark>') AS Snippet,
                 NULL::int AS PageNumber,
                 false AS HasRedaction,
                 NULL::text AS PrecedingContext,
                 NULL::text AS FollowingContext,
-                ts_rank(to_tsvector('english', c.chunk_text), plainto_tsquery('english', @Query))::float8 AS RelevanceScore,
+                ts_rank(to_tsvector('english', c.chunk_text), {tsqueryExpr})::float8 AS RelevanceScore,
                 d.document_title AS DocumentTitle,
                 d.document_date AS DocumentDate,
                 d.document_type AS DocumentType,

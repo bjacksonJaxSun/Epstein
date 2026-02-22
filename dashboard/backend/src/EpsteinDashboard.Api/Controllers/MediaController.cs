@@ -116,7 +116,13 @@ public class MediaController : ControllerBase
         // Use IMediaFileService to resolve the actual file path
         var resolvedPath = _mediaFileService.FindMedia(media.FilePath);
         if (string.IsNullOrEmpty(resolvedPath) || !System.IO.File.Exists(resolvedPath))
+        {
+            // Fallback: try R2 pre-signed URL redirect
+            var r2Url = _mediaFileService.GetR2Url(media.FilePath);
+            if (r2Url != null)
+                return Redirect(r2Url);
             return NotFound("File not found on disk.");
+        }
 
         var contentType = media.MediaType?.ToLowerInvariant() switch
         {
@@ -170,7 +176,12 @@ public class MediaController : ControllerBase
 
             var resolvedPath = _mediaFileService.FindMedia(media.FilePath);
             if (string.IsNullOrEmpty(resolvedPath) || !System.IO.File.Exists(resolvedPath))
+            {
+                var r2Url = _mediaFileService.GetR2Url(media.FilePath);
+                if (r2Url != null)
+                    return Redirect(r2Url);
                 return NotFound("File not found on disk.");
+            }
 
             return PhysicalFile(resolvedPath, "image/jpeg", enableRangeProcessing: true);
         }

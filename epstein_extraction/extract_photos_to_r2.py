@@ -46,6 +46,17 @@ R2_BUCKET_NAME = "epsteinfiles"
 # Dataset paths - local directories containing PDF files
 DATASET_PATHS = {
     "DataSet_1": Path(r"D:\Personal\Epstein\data\files\DataSet_1"),
+    "DataSet_2": Path(r"D:\Personal\Epstein\data\files\DataSet_2"),
+    "DataSet_3": Path(r"D:\Personal\Epstein\data\files\DataSet_3"),
+    "DataSet_4": Path(r"D:\Personal\Epstein\data\files\DataSet_4"),
+    "DataSet_5": Path(r"D:\Personal\Epstein\data\files\DataSet_5"),
+    "DataSet_6": Path(r"D:\Personal\Epstein\data\files\DataSet_6"),
+    "DataSet_7": Path(r"D:\Personal\Epstein\data\files\DataSet_7"),
+    "DataSet_8": Path(r"D:\Personal\Epstein\data\files\DataSet_8"),
+    "DataSet_9": Path(r"D:\Personal\Epstein\data\files\DataSet_9"),
+    "DataSet_10": Path(r"D:\Personal\Epstein\data\files\DataSet_10"),
+    "DataSet_11": Path(r"D:\Personal\Epstein\data\files\DataSet_11"),
+    "DataSet_12": Path(r"D:\Personal\Epstein\data\files\DataSet_12"),
 }
 
 # Minimum image dimensions to consider (skip tiny icons/artifacts)
@@ -476,7 +487,10 @@ def process_pdf(
 
 def find_pdfs(dataset_path: Path) -> list[Path]:
     """Find all PDF files in a dataset directory, sorted by name."""
-    pdfs = sorted(dataset_path.rglob("*.pdf"))
+    pdfs = sorted(
+        p for p in dataset_path.rglob("*.pdf")
+        if not any(part.startswith('.') for part in p.parts)
+    )
     logger.info(f"Found {len(pdfs)} PDF files in {dataset_path}")
     return pdfs
 

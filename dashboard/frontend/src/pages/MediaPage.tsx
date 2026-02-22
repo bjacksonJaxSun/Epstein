@@ -110,7 +110,8 @@ export function MediaPage() {
   const [goToPageInput, setGoToPageInput] = useState('');
   const [goToPageError, setGoToPageError] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
-  const [excludeDocumentScans, setExcludeDocumentScans] = useState(true); // Hide document scans by default
+  // When viewing images tab, automatically filter to real photos only
+  const excludeDocumentScans = activeTab === 'image';
 
   // Bi-directional pagination state
   const [loadedPages, setLoadedPages] = useState<Map<number, PaginatedResponse<MediaFile>>>(new Map());
@@ -494,21 +495,6 @@ export function MediaPage() {
             </button>
           ))}
         </div>
-
-        {/* Document Scans Toggle */}
-        <button
-          type="button"
-          onClick={() => setExcludeDocumentScans(!excludeDocumentScans)}
-          className={cn(
-            'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-            excludeDocumentScans
-              ? 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber'
-              : 'border-border-subtle bg-surface-raised text-text-secondary hover:bg-surface-overlay'
-          )}
-        >
-          <FileText className="h-3.5 w-3.5" />
-          {excludeDocumentScans ? 'Photos Only' : 'All Images'}
-        </button>
 
         {/* Go to ID */}
         <div className="flex items-center gap-2">
