@@ -40,6 +40,7 @@ DB_CONN = "host=localhost dbname=epstein_documents user=epstein_user password=ep
 # GeekenDev mirror URLs (zip files with range request support)
 ZIP_URLS = {
     9: "https://doj-files.geeken.dev/doj_zips/original_archives/DataSet%209.zip",
+    11: "https://doj-files.geeken.dev/doj_zips/original_archives/DataSet%2011.zip",
 }
 
 R2_ENDPOINT = "https://f8370fa3403bc68c2a46a3ad87be970d.r2.cloudflarestorage.com"
