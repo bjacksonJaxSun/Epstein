@@ -50,6 +50,7 @@ class Document(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     photos_checked_at = Column(DateTime, nullable=True)
     r2_key = Column(Text, nullable=True)  # Authoritative R2 object key, e.g. DataSet_9/subdir/EFTA00000001.pdf
+    ocr_status = Column(Text, nullable=True)  # NULL=unchecked, 'pending'=needs OCR, 'not_needed'=text extractable, 'done'=OCR complete
 
     # Relationships
     events = relationship("Event", back_populates="source_document")
