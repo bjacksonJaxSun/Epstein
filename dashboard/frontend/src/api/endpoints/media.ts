@@ -30,4 +30,6 @@ export const mediaApi = {
     apiGet<MediaPosition>(`/media/${id}/position`, { pageSize, mediaType, excludeDocumentScans }),
   findNearest: (id: number, mediaType?: string, excludeDocumentScans?: boolean) =>
     apiGet<NearestMediaResult>(`/media/${id}/nearest`, { mediaType, excludeDocumentScans }),
+  findByFilename: (filename: string, mediaType?: string, excludeDocumentScans?: boolean) =>
+    apiGet<MediaFile>('/media/find-by-name', { filename, mediaType, excludeDocumentScans }),
 };

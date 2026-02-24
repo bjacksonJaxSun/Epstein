@@ -48,6 +48,8 @@ class Document(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    photos_checked_at = Column(DateTime, nullable=True)
+    r2_key = Column(Text, nullable=True)  # Authoritative R2 object key, e.g. DataSet_9/subdir/EFTA00000001.pdf
 
     # Relationships
     events = relationship("Event", back_populates="source_document")

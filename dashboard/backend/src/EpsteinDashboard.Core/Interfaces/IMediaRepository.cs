@@ -10,4 +10,5 @@ public interface IMediaRepository : IRepository<MediaFile>
     Task<IReadOnlyList<ImageAnalysis>> GetAnalysesForMediaAsync(long mediaFileId, CancellationToken cancellationToken = default);
     Task<MediaPositionResult?> GetMediaPositionAsync(long id, int pageSize, string? mediaType = null, bool excludeDocumentScans = false, CancellationToken cancellationToken = default);
     Task<(long NearestId, bool IsExactMatch)> FindNearestAsync(long id, string? mediaType = null, bool excludeDocumentScans = false, CancellationToken cancellationToken = default);
+    Task<MediaFile?> FindByFilenameAsync(string filename, string? mediaType = null, bool excludeDocumentScans = false, CancellationToken cancellationToken = default);
 }

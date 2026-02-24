@@ -96,8 +96,9 @@ public class MediaFileService : IMediaFileService
         if (string.IsNullOrEmpty(storedPath))
             return null;
 
-        // R2-only paths (e.g. "DataSet_1/...") are not local files — skip disk search
-        if (storedPath.StartsWith("DataSet_", StringComparison.OrdinalIgnoreCase))
+        // R2-only paths (e.g. "DataSet_1/..." or "NATIVES/...") are not local files — skip disk search
+        if (storedPath.StartsWith("DataSet_", StringComparison.OrdinalIgnoreCase) ||
+            storedPath.StartsWith("NATIVES/", StringComparison.OrdinalIgnoreCase))
             return null;
 
         // 1. Try direct path (works when running on same OS as DB was created)
@@ -140,9 +141,11 @@ public class MediaFileService : IMediaFileService
 
         string objectKey;
 
-        // New format: paths starting with "DataSet_" are stored as direct R2 keys
+        // Direct R2 key paths: "DataSet_..." or "NATIVES/..."
         // e.g. "DataSet_1/IMAGES/0001/EFTA00000002_p1_img1.png"
-        if (storedPath.StartsWith("DataSet_", StringComparison.OrdinalIgnoreCase))
+        // e.g. "NATIVES/0001/EFTA01683546.wav"
+        if (storedPath.StartsWith("DataSet_", StringComparison.OrdinalIgnoreCase) ||
+            storedPath.StartsWith("NATIVES/", StringComparison.OrdinalIgnoreCase))
         {
             objectKey = storedPath.Replace('\\', '/');
         }
