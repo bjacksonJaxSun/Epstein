@@ -283,6 +283,7 @@ def process_pdf(
         "skipped_small": 0,
         "skipped_dup": 0,
         "skipped_grayscale_tiny": 0,
+        "needs_ocr": False,  # True if any page lacks extractable text
     }
 
     if seen_checksums is None:
@@ -331,6 +332,17 @@ def process_pdf(
     try:
         for page_num in range(len(doc)):
             page = doc[page_num]
+
+            # OCR detection: if the page has no/minimal extractable text it's
+            # a scanned image and will need OCR.  We only flip needs_ocr once.
+            if not stats["needs_ocr"]:
+                try:
+                    page_text = page.get_text().strip()
+                    if len(page_text) < 50:
+                        stats["needs_ocr"] = True
+                except Exception:
+                    pass  # don't let text-check errors stop extraction
+
             image_list = page.get_images(full=True)
 
             for img_idx, img_info in enumerate(image_list):
@@ -496,19 +508,26 @@ def process_pdf(
 # MAIN PROCESSING LOOP
 # ============================================
 
-def _stamp_checked(db_session, efta_stem: str):
-    """Write photos_checked_at = NOW() for an EFTA. Silently skips on error."""
+def _stamp_checked(db_session, efta_stem: str, needs_ocr: bool = False):
+    """Write photos_checked_at and ocr_status for an EFTA. Silently skips on error.
+
+    ocr_status values:
+      'pending'     — at least one page has no extractable text (scanned, needs OCR)
+      'not_needed'  — all pages have extractable text (already searchable)
+    """
+    ocr_status = "pending" if needs_ocr else "not_needed"
     try:
         db_session.execute(
             text(
-                "UPDATE documents SET photos_checked_at = NOW() "
+                "UPDATE documents "
+                "SET photos_checked_at = NOW(), ocr_status = :ocr_status "
                 "WHERE efta_number = :efta AND photos_checked_at IS NULL"
             ),
-            {"efta": efta_stem},
+            {"efta": efta_stem, "ocr_status": ocr_status},
         )
         db_session.commit()
     except Exception as e:
-        logger.debug(f"Could not set photos_checked_at for {efta_stem}: {e}")
+        logger.debug(f"Could not stamp {efta_stem}: {e}")
         try:
             db_session.rollback()
         except Exception:
@@ -566,7 +585,7 @@ def _worker_main(task_queue, result_queue, dataset_name, dataset_path_str, dry_r
                 source_r2_key=r2_key,
             )
             if not dry_run:
-                _stamp_checked(db_session, efta)
+                _stamp_checked(db_session, efta, needs_ocr=stats.get("needs_ocr", False))
             result_queue.put(('ok', stats))
         except Exception as e:
             logger.error(f"Worker error on {efta}: {e}")
@@ -829,7 +848,7 @@ def process_dataset(
                     checksums_lock, source_r2_key=r2_key,
                 )
                 if not dry_run:
-                    _stamp_checked(session, efta)
+                    _stamp_checked(session, efta, needs_ocr=stats.get("needs_ocr", False))
                 return stats
             finally:
                 session.close()
