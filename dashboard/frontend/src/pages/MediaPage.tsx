@@ -27,6 +27,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  Play,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { mediaApi } from '@/api/endpoints/media';
@@ -47,6 +48,30 @@ const TABS: { key: MediaTab; label: string; icon: typeof Image }[] = [
 ];
 
 const PAGE_SIZE = 48;
+
+// --- Persistent state helpers ---
+const MEDIA_STATE_KEY = 'media-gallery-state';
+
+interface SavedMediaState {
+  activeTab: MediaTab;
+  page: number;
+  selectedMediaId: number | null;
+}
+
+function loadSavedMediaState(): SavedMediaState | null {
+  try {
+    const raw = localStorage.getItem(MEDIA_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveMediaState(state: SavedMediaState) {
+  try {
+    localStorage.setItem(MEDIA_STATE_KEY, JSON.stringify(state));
+  } catch { /* ignore */ }
+}
 
 function getMediaIcon(type: MediaFile['mediaType']) {
   switch (type) {
@@ -102,13 +127,19 @@ function MediaTypeBadge({ type }: { type: MediaFile['mediaType'] }) {
 }
 
 export function MediaPage() {
-  const [activeTab, setActiveTab] = useState<MediaTab>('all');
+  const [activeTab, setActiveTab] = useState<MediaTab>(() => {
+    const saved = loadSavedMediaState();
+    return saved?.activeTab ?? 'all';
+  });
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   const [lightboxMedia, setLightboxMedia] = useState<MediaFile | null>(null);
+  const [videoPlayerMedia, setVideoPlayerMedia] = useState<MediaFile | null>(null);
   const [goToIdInput, setGoToIdInput] = useState('');
   const [goToIdError, setGoToIdError] = useState<string | null>(null);
   const [goToPageInput, setGoToPageInput] = useState('');
   const [goToPageError, setGoToPageError] = useState<string | null>(null);
+  const [goToFileInput, setGoToFileInput] = useState('');
+  const [goToFileError, setGoToFileError] = useState<string | null>(null);
   const [isJumping, setIsJumping] = useState(false);
   // When viewing images tab, automatically filter to real photos only
   const excludeDocumentScans = activeTab === 'image';
@@ -123,6 +154,7 @@ export function MediaPage() {
   const loadMoreTopRef = useRef<HTMLDivElement>(null);
   const loadMoreBottomRef = useRef<HTMLDivElement>(null);
   const topTriggerReady = useRef(true); // Prevents re-triggering until user scrolls away
+  const hasRestored = useRef(false);
   const queryClient = useQueryClient();
 
   const { bookmarks, addBookmark, removeBookmark, isBookmarked: checkIsBookmarked, getBookmark } = useBookmarkStore();
@@ -304,9 +336,57 @@ export function MediaPage() {
     }
   };
 
+  // Handle "Go to File" - jump to a media file by filename
+  const handleGoToFile = async () => {
+    const filename = goToFileInput.trim();
+    if (!filename) {
+      setGoToFileError('Enter a filename');
+      return;
+    }
+
+    setGoToFileError(null);
+    setIsJumping(true);
+
+    try {
+      // Find the media file by filename
+      const media = await mediaApi.findByFilename(filename, queryMediaType, excludeDocumentScans);
+      const targetId = media.mediaFileId;
+
+      // Get its position and load that page
+      const position = await mediaApi.getPosition(targetId, PAGE_SIZE, queryMediaType, excludeDocumentScans);
+      const pageNum = position.page;
+      const result = await mediaApi.list({
+        page: pageNum + 1,
+        pageSize: PAGE_SIZE,
+        mediaType: queryMediaType,
+        excludeDocumentScans,
+      });
+
+      setLoadedPages(new Map([[pageNum, result]]));
+      setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
+      setCurrentStartPage(pageNum);
+      setSelectedMedia(media);
+      setGoToFileInput('');
+
+      setTimeout(() => {
+        const element = document.getElementById(`media-card-${targetId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+
+    } catch {
+      setGoToFileError('No file found matching that name');
+    } finally {
+      setIsJumping(false);
+    }
+  };
+
   const handleOpenLightbox = (media: MediaFile) => {
     if (media.mediaType === 'image') {
       setLightboxMedia(media);
+    } else if (media.mediaType === 'video') {
+      setVideoPlayerMedia(media);
     } else if (media.sourceDocumentId) {
       handleOpenDocument(media.sourceDocumentId);
     }
@@ -435,6 +515,83 @@ export function MediaPage() {
     setSelectedMedia(null);
     queryClient.invalidateQueries({ queryKey: ['media-initial'] });
   }, [activeTab, excludeDocumentScans, queryClient]);
+
+  // Restore saved page and selection on mount
+  useEffect(() => {
+    if (isLoading || hasRestored.current) return;
+    hasRestored.current = true;
+
+    const saved = loadSavedMediaState();
+    if (!saved || saved.activeTab !== activeTab) return;
+
+    // If page 0 is already loaded and that's the saved page, just restore selection
+    if (saved.page === 0) {
+      if (saved.selectedMediaId) {
+        const found = allApiItems.find(item => item.media.mediaFileId === saved.selectedMediaId);
+        if (found) {
+          setSelectedMedia(found.media);
+          setTimeout(() => {
+            const el = document.getElementById(`media-card-${saved.selectedMediaId}`);
+            if (el) el.scrollIntoView({ behavior: 'auto', block: 'center' });
+          }, 150);
+        }
+      }
+      return;
+    }
+
+    // Need to jump to a different page
+    (async () => {
+      try {
+        const result = await mediaApi.list({
+          page: saved.page + 1,
+          pageSize: PAGE_SIZE,
+          mediaType: queryMediaType,
+          excludeDocumentScans,
+        });
+
+        setLoadedPages(new Map([[saved.page, result]]));
+        setTotalInfo({ totalCount: result.totalCount, totalPages: result.totalPages });
+        setCurrentStartPage(saved.page);
+
+        if (saved.selectedMediaId) {
+          const found = result.items.find(item => item.mediaFileId === saved.selectedMediaId);
+          if (found) {
+            setSelectedMedia(found);
+            setTimeout(() => {
+              const el = document.getElementById(`media-card-${saved.selectedMediaId}`);
+              if (el) el.scrollIntoView({ behavior: 'auto', block: 'center' });
+            }, 150);
+          }
+        }
+      } catch {
+        // If restore fails, stay on the initially loaded page
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, allApiItems]);
+
+  // Persist current state to localStorage
+  useEffect(() => {
+    if (isLoading) return;
+
+    let page = sortedPageNumbers.length > 0 ? sortedPageNumbers[0] : 0;
+
+    // If a media is selected, save the page it's on
+    if (selectedMedia) {
+      for (const [pageNum, pageData] of loadedPages.entries()) {
+        if (pageData.items.some(item => item.mediaFileId === selectedMedia.mediaFileId)) {
+          page = pageNum;
+          break;
+        }
+      }
+    }
+
+    saveMediaState({
+      activeTab,
+      page,
+      selectedMediaId: selectedMedia?.mediaFileId ?? null,
+    });
+  }, [activeTab, sortedPageNumbers, selectedMedia, loadedPages, isLoading]);
 
   function handleTabChange(tab: MediaTab) {
     setActiveTab(tab);
@@ -570,6 +727,37 @@ export function MediaPage() {
               </div>
             )}
           </div>
+          {/* Go to File */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-border-subtle bg-surface-raised">
+              <div className="flex items-center gap-1.5 px-2 text-text-tertiary">
+                <Search className="h-3.5 w-3.5" />
+                <span className="text-xs">File:</span>
+              </div>
+              <input
+                type="text"
+                value={goToFileInput}
+                onChange={(e) => {
+                  setGoToFileInput(e.target.value);
+                  setGoToFileError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleGoToFile()}
+                placeholder="EFTA01234567.mp4"
+                className="w-40 bg-transparent px-2 py-1.5 text-xs text-text-primary placeholder:text-text-disabled focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleGoToFile}
+                className="flex items-center justify-center h-full px-2 text-text-tertiary hover:text-accent-blue transition-colors border-l border-border-subtle"
+                title="Go to file by name"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {goToFileError && (
+              <span className="text-xs text-accent-red">{goToFileError}</span>
+            )}
+          </div>
         </div>
       </div>
       </div>
@@ -637,6 +825,7 @@ export function MediaPage() {
                     onSelect={() => setSelectedMedia(item.media)}
                     onDoubleClick={() => handleOpenLightbox(item.media)}
                     onToggleBookmark={() => toggleBookmark(item.media)}
+                    onPlay={item.media.mediaType === 'video' ? () => setVideoPlayerMedia(item.media) : undefined}
                   />
                 ))}
               </div>
@@ -693,6 +882,14 @@ export function MediaPage() {
           onNext={lightboxIndex < imageItems.length - 1 ? handleLightboxNext : undefined}
         />
       )}
+
+      {/* Video Player */}
+      {videoPlayerMedia && (
+        <VideoPlayer
+          media={videoPlayerMedia}
+          onClose={() => setVideoPlayerMedia(null)}
+        />
+      )}
     </div>
   );
 }
@@ -705,6 +902,7 @@ function MediaCard({
   onSelect,
   onDoubleClick,
   onToggleBookmark,
+  onPlay,
 }: {
   media: MediaFile;
   index: number;
@@ -713,12 +911,23 @@ function MediaCard({
   onSelect: () => void;
   onDoubleClick: () => void;
   onToggleBookmark: () => void;
+  onPlay?: () => void;
 }) {
   const Icon = getMediaIcon(media.mediaType);
   const [imgError, setImgError] = useState(false);
+  const [thumbRetries, setThumbRetries] = useState(0);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const imageUrl = `/api/media/${media.mediaFileId}/file`;
+
+  // Retry failed video thumbnails (backend may return 503 under load)
+  const handleThumbError = useCallback(() => {
+    if (thumbRetries < 3) {
+      setTimeout(() => setThumbRetries(r => r + 1), 2000 * (thumbRetries + 1));
+    } else {
+      setImgError(true);
+    }
+  }, [thumbRetries]);
 
   const handleBookmarkClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -798,15 +1007,21 @@ function MediaCard({
         ) : media.mediaType === 'video' && !imgError ? (
           <>
             <img
-              src={`/api/media/${media.mediaFileId}/thumbnail`}
+              src={`/api/media/${media.mediaFileId}/thumbnail${thumbRetries > 0 ? `?r=${thumbRetries}` : ''}`}
               alt={media.fileName}
               className="h-full w-full object-cover"
-              onError={() => setImgError(true)}
+              onError={handleThumbError}
               loading="lazy"
             />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
-                <Video className="h-5 w-5 text-white" />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); onPlay?.(); }}
+              onKeyDown={(e) => e.key === 'Enter' && (e.stopPropagation(), onPlay?.())}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm transition-transform hover:scale-110 hover:bg-black/80">
+                <Play className="h-5 w-5 text-white fill-white" />
               </div>
             </div>
           </>
@@ -850,6 +1065,13 @@ function MediaDetailSidebar({
 }) {
   const Icon = getMediaIcon(media.mediaType);
   const [imgError, setImgError] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+
+  // Reset error states when switching to a different media file
+  useEffect(() => {
+    setImgError(false);
+    setVideoError(false);
+  }, [media.mediaFileId]);
 
   const imageUrl = `/api/media/${media.mediaFileId}/file`;
 
@@ -905,14 +1127,26 @@ function MediaDetailSidebar({
           </>
         ) : media.mediaType === 'video' ? (
           <div className="flex flex-col items-center gap-2 w-full h-full">
-            <video
-              src={imageUrl}
-              controls
-              className="flex-1 w-full"
-              preload="metadata"
-            >
-              Your browser does not support the video tag.
-            </video>
+            {videoError ? (
+              <div className="flex flex-col items-center justify-center gap-3 p-4 flex-1">
+                <Film className="h-12 w-12 text-text-disabled" />
+                <p className="text-xs text-text-secondary text-center">
+                  This video uses a codec your browser can't play.
+                  <br />
+                  <span className="text-text-tertiary">Download it to watch in VLC or another player.</span>
+                </p>
+              </div>
+            ) : (
+              <video
+                src={imageUrl}
+                controls
+                className="flex-1 w-full"
+                preload="metadata"
+                onError={() => setVideoError(true)}
+              >
+                Your browser does not support the video tag.
+              </video>
+            )}
             <a
               href={imageUrl}
               download={media.fileName}
@@ -1283,6 +1517,96 @@ function ImageLightbox({
             </span>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function VideoPlayer({
+  media,
+  onClose,
+}: {
+  media: MediaFile;
+  onClose: () => void;
+}) {
+  const [videoError, setVideoError] = useState(false);
+  const videoUrl = `/api/media/${media.mediaFileId}/file`;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      {/* Toolbar */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 rounded-lg bg-surface-raised/90 backdrop-blur-sm border border-border-subtle p-1">
+        <a
+          href={videoUrl}
+          download={media.fileName}
+          className="flex h-8 items-center gap-1.5 rounded-md px-3 text-xs text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors"
+          title="Download"
+        >
+          <Download className="h-4 w-4" />
+          Download
+        </a>
+      </div>
+
+      {/* Close Button */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface-raised/90 backdrop-blur-sm border border-border-subtle text-text-secondary hover:bg-surface-overlay hover:text-text-primary transition-colors"
+        title="Close (Esc)"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      {/* Video */}
+      <div className="relative w-full h-full flex items-center justify-center p-12">
+        {videoError ? (
+          <div className="flex flex-col items-center gap-4">
+            <Film className="h-16 w-16 text-text-disabled" />
+            <p className="text-sm text-text-secondary text-center">
+              This video uses a codec your browser can't play.
+            </p>
+            <a
+              href={videoUrl}
+              download={media.fileName}
+              className="flex items-center gap-2 rounded-md bg-accent-purple px-4 py-2 text-sm font-medium text-white hover:bg-accent-purple/80 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Download to watch in VLC
+            </a>
+          </div>
+        ) : (
+          <video
+            src={videoUrl}
+            controls
+            autoPlay
+            className="max-w-full max-h-full rounded-lg"
+            onError={() => setVideoError(true)}
+          >
+            Your browser does not support the video tag.
+          </video>
+        )}
+      </div>
+
+      {/* File Name */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 rounded-lg bg-surface-raised/90 backdrop-blur-sm border border-border-subtle px-4 py-2">
+        <p className="text-sm text-text-primary font-medium">{media.fileName}</p>
+        <span className="text-xs font-mono text-accent-blue">ID: {media.mediaFileId}</span>
       </div>
     </div>
   );

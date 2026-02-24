@@ -145,4 +145,29 @@ public class MediaRepository : BaseRepository<MediaFile>, IMediaRepository
         // Return whichever is closer
         return (id - prevId <= nextId - id) ? (prevId, false) : (nextId, false);
     }
+
+    public async Task<MediaFile?> FindByFilenameAsync(string filename, string? mediaType = null, bool excludeDocumentScans = false, CancellationToken cancellationToken = default)
+    {
+        var query = DbSet.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(mediaType))
+            query = query.Where(m => m.MediaType == mediaType);
+
+        if (excludeDocumentScans)
+            query = query.Where(m => m.IsLikelyPhoto == true);
+
+        // Try exact match first, then case-insensitive contains
+        var result = await query
+            .Where(m => m.FileName == filename)
+            .OrderBy(m => m.MediaFileId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (result != null)
+            return result;
+
+        return await query
+            .Where(m => m.FileName != null && EF.Functions.ILike(m.FileName, $"%{filename}%"))
+            .OrderBy(m => m.MediaFileId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }

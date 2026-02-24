@@ -19,6 +19,7 @@ import multiprocessing
 import os
 import queue as queue_module
 import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -259,14 +260,18 @@ def get_content_type(ext: str) -> str:
 def process_pdf(
     pdf_path: Path,
     dataset_name: str,
-    dataset_base: Path,
+    dataset_base: Optional[Path],
     s3_client,
     db_session,
     dry_run: bool = False,
     seen_checksums: Optional[set] = None,
     checksums_lock: Optional[threading.Lock] = None,
+    source_r2_key: Optional[str] = None,
 ) -> dict:
     """Extract embedded images from a single PDF, classify, and upload photos.
+
+    source_r2_key: when set (R2 mode), the photo R2 key is derived from the
+    source PDF's R2 key directory rather than the local relative path.
 
     Returns a stats dict: {photos_found, docs_skipped, errors, uploaded, skipped_small, skipped_dup}
     """
@@ -290,11 +295,19 @@ def process_pdf(
         stats["errors"] += 1
         return stats
 
-    # Compute relative path for R2 key: DataSet_1/IMAGES/0001/EFTA00000002
-    try:
-        rel_path = pdf_path.relative_to(dataset_base)
-    except ValueError:
-        rel_path = Path(pdf_path.name)
+    # Determine the directory prefix for photo R2 keys.
+    # R2 mode: derive from the source PDF's known R2 key (authoritative).
+    # Local mode: derive from the PDF's path relative to the dataset base.
+    if source_r2_key:
+        # e.g. "DataSet_10/0001/EFTA01262782.pdf" -> "DataSet_10/0001"
+        photo_r2_dir = str(Path(source_r2_key).parent).replace("\\", "/")
+    else:
+        try:
+            rel_path = pdf_path.relative_to(dataset_base)
+        except ValueError:
+            rel_path = Path(pdf_path.name)
+        rel_dir = str(rel_path.parent).replace("\\", "/")
+        photo_r2_dir = dataset_name if rel_dir == "." else f"{dataset_name}/{rel_dir}"
 
     # EFTA number from filename (e.g. EFTA00000002.pdf -> EFTA00000002)
     efta_stem = pdf_path.stem  # e.g. "EFTA00000002"
@@ -388,13 +401,9 @@ def process_pdf(
                     stats["docs_skipped"] += 1
                     continue
 
-                # It's a photo! Build the R2 key
-                # e.g. DataSet_1/IMAGES/0001/EFTA00000002_p1_img1.png
-                rel_dir = str(rel_path.parent).replace("\\", "/")
-                if rel_dir == ".":
-                    r2_key = f"{dataset_name}/{efta_stem}_p{page_num + 1}_img{img_idx + 1}.{img_ext}"
-                else:
-                    r2_key = f"{dataset_name}/{rel_dir}/{efta_stem}_p{page_num + 1}_img{img_idx + 1}.{img_ext}"
+                # It's a photo! Build the R2 key using the pre-computed directory.
+                # e.g. DataSet_10/0001/EFTA01262782_p1_img1.png
+                r2_key = f"{photo_r2_dir}/{efta_stem}_p{page_num + 1}_img{img_idx + 1}.{img_ext}"
 
                 content_type = get_content_type(img_ext)
                 file_size = len(img_bytes)
@@ -487,34 +496,80 @@ def process_pdf(
 # MAIN PROCESSING LOOP
 # ============================================
 
-def _worker_main(task_queue, result_queue, dataset_name, dataset_path_str, dry_run):
+def _stamp_checked(db_session, efta_stem: str):
+    """Write photos_checked_at = NOW() for an EFTA. Silently skips on error."""
+    try:
+        db_session.execute(
+            text(
+                "UPDATE documents SET photos_checked_at = NOW() "
+                "WHERE efta_number = :efta AND photos_checked_at IS NULL"
+            ),
+            {"efta": efta_stem},
+        )
+        db_session.commit()
+    except Exception as e:
+        logger.debug(f"Could not set photos_checked_at for {efta_stem}: {e}")
+        try:
+            db_session.rollback()
+        except Exception:
+            pass
+
+
+def _worker_main(task_queue, result_queue, dataset_name, dataset_path_str, dry_run,
+                 source="local", temp_dir_str=None):
     """Child process: processes PDFs one at a time via queues.
 
     Runs in a separate process so PyMuPDF segfaults don't kill the main process.
+
+    Local mode: task items are local path strings.
+    R2 mode:    task items are (efta, r2_key) tuples; PDF is downloaded to temp_dir.
     """
-    dataset_path = Path(dataset_path_str)
-    s3_client = create_r2_client() if not dry_run else None
+    dataset_path = Path(dataset_path_str) if dataset_path_str else None
+    temp_dir = Path(temp_dir_str) if temp_dir_str else None
+    s3_client = create_r2_client()  # needed for both upload (always) and download (R2 mode)
+    if dry_run and source == "local":
+        s3_client = None
     db_session = SessionLocal()
     seen_checksums: set = set()
 
     while True:
         try:
-            pdf_path_str = task_queue.get(timeout=10)
+            item = task_queue.get(timeout=10)
         except queue_module.Empty:
             continue
 
-        if pdf_path_str is None:  # shutdown sentinel
+        if item is None:  # shutdown sentinel
             db_session.close()
             return
 
-        pdf_path = Path(pdf_path_str)
+        # Unpack item depending on mode
+        if source == "r2":
+            efta, r2_key = item
+            pdf_path = None
+        else:
+            pdf_path = Path(item)
+            efta = pdf_path.stem
+            r2_key = None
+
+        temp_path = None
         try:
+            if source == "r2":
+                # Download from R2 to temp file
+                temp_path = temp_dir / f"{efta}.pdf"
+                if not dry_run:
+                    s3_client.download_file(R2_BUCKET_NAME, r2_key, str(temp_path))
+                pdf_path = temp_path
+
             stats = process_pdf(
                 pdf_path, dataset_name, dataset_path,
                 s3_client, db_session, dry_run, seen_checksums,
+                source_r2_key=r2_key,
             )
+            if not dry_run:
+                _stamp_checked(db_session, efta)
             result_queue.put(('ok', stats))
         except Exception as e:
+            logger.error(f"Worker error on {efta}: {e}")
             try:
                 db_session.rollback()
             except Exception:
@@ -523,6 +578,13 @@ def _worker_main(task_queue, result_queue, dataset_name, dataset_path_str, dry_r
                 'photos_found': 0, 'docs_skipped': 0, 'uploaded': 0,
                 'errors': 1, 'skipped_small': 0, 'skipped_dup': 0,
             }))
+        finally:
+            # Always clean up temp file
+            if temp_path and temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except Exception:
+                    pass
 
 
 def find_pdfs(dataset_path: Path) -> list[Path]:
@@ -535,48 +597,120 @@ def find_pdfs(dataset_path: Path) -> list[Path]:
     return pdfs
 
 
+def get_unprocessed_r2_pdfs(
+    dataset_name: str,
+    db_session,
+    limit: Optional[int] = None,
+    resume_from: Optional[str] = None,
+) -> list[tuple[str, str]]:
+    """Query DB for (efta_number, r2_key) pairs that have not been photo-checked.
+
+    Only returns rows where r2_key IS NOT NULL — never assumes file location.
+    Results are ordered by efta_number for deterministic processing.
+    """
+    query = """
+        SELECT efta_number, r2_key
+        FROM documents
+        WHERE photos_checked_at IS NULL
+          AND r2_key IS NOT NULL
+          AND r2_key LIKE :prefix
+        ORDER BY efta_number
+    """
+    params: dict = {"prefix": f"{dataset_name}/%"}
+    rows = db_session.execute(text(query), params).fetchall()
+    results = [(r[0], r[1]) for r in rows]
+
+    if resume_from:
+        resume_upper = resume_from.upper()
+        for i, (efta, _) in enumerate(results):
+            if efta.upper() >= resume_upper:
+                results = results[i:]
+                logger.info(f"Resuming from {resume_from}, skipped {i} entries")
+                break
+
+    if limit:
+        results = results[:limit]
+
+    logger.info(f"R2 work queue: {len(results)} unprocessed PDFs for {dataset_name}")
+    return results
+
+
+def download_from_r2(s3_client, r2_key: str, temp_dir: Path) -> Path:
+    """Download a PDF from R2 to temp_dir. Returns the local temp path."""
+    stem = Path(r2_key).stem
+    dest = temp_dir / f"{stem}.pdf"
+    s3_client.download_file(R2_BUCKET_NAME, r2_key, str(dest))
+    return dest
+
+
 def process_dataset(
     dataset_name: str,
     dry_run: bool = False,
     workers: int = 1,
     resume_from: Optional[str] = None,
     limit: Optional[int] = None,
+    efta_list: Optional[set] = None,
+    source: str = "local",
+    temp_dir: Optional[Path] = None,
 ):
-    """Process all PDFs in a dataset."""
-    if dataset_name not in DATASET_PATHS:
-        logger.error(f"Unknown dataset: {dataset_name}. Known: {list(DATASET_PATHS.keys())}")
-        return
+    """Process all PDFs in a dataset.
 
-    dataset_path = DATASET_PATHS[dataset_name]
-    if not dataset_path.exists():
-        logger.error(f"Dataset path does not exist: {dataset_path}")
-        return
+    source="local": reads from local filesystem (original behaviour).
+    source="r2":    queries DB for r2_key, downloads each PDF on demand.
+                    temp_dir is used for temporary PDF downloads.
+    """
+    dataset_path: Optional[Path] = None
 
-    pdfs = find_pdfs(dataset_path)
-    if not pdfs:
-        logger.warning("No PDFs found.")
-        return
+    if source == "local":
+        if dataset_name not in DATASET_PATHS:
+            logger.error(f"Unknown dataset: {dataset_name}. Known: {list(DATASET_PATHS.keys())}")
+            return
+        dataset_path = DATASET_PATHS[dataset_name]
+        if not dataset_path.exists():
+            logger.error(f"Dataset path does not exist: {dataset_path}")
+            return
+        pdfs = find_pdfs(dataset_path)
+        if not pdfs:
+            logger.warning("No PDFs found.")
+            return
+        # Filter / resume / limit for local mode
+        if efta_list:
+            before = len(pdfs)
+            pdfs = [p for p in pdfs if p.stem.upper() in efta_list]
+            logger.info(f"EFTA filter: {before} -> {len(pdfs)} PDFs")
+        if resume_from:
+            resume_from_upper = resume_from.upper()
+            for i, pdf in enumerate(pdfs):
+                if resume_from_upper in pdf.stem.upper():
+                    pdfs = pdfs[i:]
+                    logger.info(f"Resuming from {resume_from}, skipped {i} PDFs")
+                    break
+        if limit:
+            pdfs = pdfs[:limit]
+            logger.info(f"Limited to {limit} PDFs")
+        work_items = pdfs  # list[Path]
 
-    # Resume support: skip PDFs until we find the resume point
-    if resume_from:
-        resume_from_upper = resume_from.upper()
-        skip_count = 0
-        for i, pdf in enumerate(pdfs):
-            if resume_from_upper in pdf.stem.upper():
-                pdfs = pdfs[i:]
-                skip_count = i
-                break
-        logger.info(f"Resuming from {resume_from}, skipped {skip_count} PDFs")
+    else:  # source == "r2"
+        # Set up temp directory for PDF downloads
+        if temp_dir is None:
+            temp_dir = Path(tempfile.gettempdir()) / "epstein_photo_extraction"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"R2 mode: temp dir = {temp_dir}")
 
-    if limit:
-        pdfs = pdfs[:limit]
-        logger.info(f"Limited to {limit} PDFs")
+        db_init = SessionLocal()
+        try:
+            r2_work = get_unprocessed_r2_pdfs(dataset_name, db_init, limit, resume_from)
+        finally:
+            db_init.close()
 
-    # Create R2 client
-    s3_client = None
-    if not dry_run:
-        s3_client = create_r2_client()
-        logger.info("R2 client initialized")
+        if not r2_work:
+            logger.info(f"No unprocessed R2 PDFs found for {dataset_name} — all done or r2_key not yet populated.")
+            return
+        work_items = r2_work  # list[tuple[efta, r2_key]]
+
+    # R2 client always needed (uploads in both modes; downloads in R2 mode)
+    s3_client = create_r2_client()
+    logger.info("R2 client initialized")
 
     # Shared state
     seen_checksums: set[str] = set()
@@ -591,7 +725,8 @@ def process_dataset(
     }
 
     start_time = time.time()
-    logger.info(f"Processing {len(pdfs)} PDFs from {dataset_name} (dry_run={dry_run}, workers={workers})")
+    logger.info(f"Processing {len(work_items)} PDFs from {dataset_name} "
+                f"(source={source}, dry_run={dry_run}, workers={workers})")
 
     if workers <= 1:
         # Sequential processing via crash-isolated child process.
@@ -603,33 +738,43 @@ def process_dataset(
         def start_worker():
             p = multiprocessing.Process(
                 target=_worker_main,
-                args=(task_queue, result_queue, dataset_name, str(dataset_path), dry_run),
+                args=(task_queue, result_queue, dataset_name,
+                      str(dataset_path) if dataset_path else "", dry_run),
+                kwargs={"source": source, "temp_dir_str": str(temp_dir) if temp_dir else None},
                 daemon=True,
             )
             p.start()
             return p
 
         worker = start_worker()
+        current_item = None
 
-        for i, pdf_path in enumerate(pdfs):
+        for i, item in enumerate(work_items):
             # Restart worker if it died (segfault from previous PDF)
             if not worker.is_alive():
-                logger.warning(f"Worker died (exit {worker.exitcode}), restarting for {pdf_path.name}")
+                logger.warning(f"Worker died (exit {worker.exitcode}), restarting for {item_label(item)}")
+                # Clean up any orphaned temp file from the crashed worker
+                if source == "r2" and current_item is not None:
+                    orphan = temp_dir / f"{current_item[0]}.pdf"
+                    if orphan.exists():
+                        orphan.unlink(missing_ok=True)
                 worker = start_worker()
 
-            task_queue.put(str(pdf_path))
+            current_item = item
+            # Local mode: send path string; R2 mode: send (efta, r2_key) tuple
+            task_queue.put(str(item) if source == "local" else item)
 
             # Wait for result; if worker crashes during processing, detect via timeout
             try:
                 status, stats = result_queue.get(timeout=300)
             except queue_module.Empty:
                 if not worker.is_alive():
-                    logger.error(f"Worker segfaulted on {pdf_path.name} (exit {worker.exitcode}), skipping")
+                    logger.error(f"Worker segfaulted on {item_label(item)} (exit {worker.exitcode}), skipping")
                     worker = start_worker()
                     stats = {'photos_found': 0, 'docs_skipped': 0, 'uploaded': 0,
                              'errors': 1, 'skipped_small': 0, 'skipped_dup': 0}
                 else:
-                    logger.warning(f"Timeout waiting for result from {pdf_path.name}, skipping")
+                    logger.warning(f"Timeout waiting for result from {item_label(item)}, skipping")
                     stats = {'photos_found': 0, 'docs_skipped': 0, 'uploaded': 0,
                              'errors': 1, 'skipped_small': 0, 'skipped_dup': 0}
 
@@ -639,11 +784,11 @@ def process_dataset(
                 total_stats[key] += stats.get(key, 0)
 
             # Progress log every 50 PDFs
-            if (i + 1) % 50 == 0 or (i + 1) == len(pdfs):
+            if (i + 1) % 50 == 0 or (i + 1) == len(work_items):
                 elapsed = time.time() - start_time
                 rate = total_stats["pdfs_processed"] / elapsed if elapsed > 0 else 0
                 logger.info(
-                    f"Progress: {i + 1}/{len(pdfs)} PDFs "
+                    f"Progress: {i + 1}/{len(work_items)} PDFs "
                     f"({rate:.1f}/s) | "
                     f"photos={total_stats['photos_found']} "
                     f"uploaded={total_stats['uploaded']} "
@@ -662,36 +807,57 @@ def process_dataset(
         # Each worker gets its own DB session; shared set guarded by lock
         checksums_lock = threading.Lock()
 
-        def worker_fn(pdf_path: Path) -> dict:
+        def worker_fn(item) -> dict:
+            """item is a Path (local mode) or (efta, r2_key) tuple (R2 mode)."""
             session = SessionLocal()
+            temp_path = None
             try:
-                return process_pdf(
+                if source == "r2":
+                    efta, r2_key = item
+                    temp_path = temp_dir / f"{efta}_{threading.get_ident()}.pdf"
+                    if not dry_run:
+                        s3_client.download_file(R2_BUCKET_NAME, r2_key, str(temp_path))
+                    pdf_path = temp_path
+                else:
+                    pdf_path = item
+                    efta = pdf_path.stem
+                    r2_key = None
+
+                stats = process_pdf(
                     pdf_path, dataset_name, dataset_path,
                     s3_client, session, dry_run, seen_checksums,
-                    checksums_lock,
+                    checksums_lock, source_r2_key=r2_key,
                 )
+                if not dry_run:
+                    _stamp_checked(session, efta)
+                return stats
             finally:
                 session.close()
+                if temp_path and temp_path.exists():
+                    try:
+                        temp_path.unlink()
+                    except Exception:
+                        pass
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {executor.submit(worker_fn, pdf): pdf for pdf in pdfs}
+            futures = {executor.submit(worker_fn, item): item for item in work_items}
 
             for i, future in enumerate(as_completed(futures)):
-                pdf_path = futures[future]
+                item = futures[future]
                 try:
                     stats = future.result()
                     total_stats["pdfs_processed"] += 1
                     for key in ["photos_found", "docs_skipped", "uploaded", "errors", "skipped_small", "skipped_dup"]:
                         total_stats[key] += stats.get(key, 0)
                 except Exception as e:
-                    logger.error(f"Worker error for {pdf_path.name}: {e}")
+                    logger.error(f"Worker error for {item_label(item)}: {e}")
                     total_stats["errors"] += 1
 
-                if (i + 1) % 50 == 0 or (i + 1) == len(pdfs):
+                if (i + 1) % 50 == 0 or (i + 1) == len(work_items):
                     elapsed = time.time() - start_time
                     rate = total_stats["pdfs_processed"] / elapsed if elapsed > 0 else 0
                     logger.info(
-                        f"Progress: {total_stats['pdfs_processed']}/{len(pdfs)} PDFs "
+                        f"Progress: {total_stats['pdfs_processed']}/{len(work_items)} PDFs "
                         f"({rate:.1f}/s) | "
                         f"photos={total_stats['photos_found']} "
                         f"uploaded={total_stats['uploaded']} "
@@ -767,8 +933,37 @@ Examples:
         default=None,
         help="Limit to N PDFs (for testing)",
     )
+    parser.add_argument(
+        "--efta-list",
+        type=str,
+        default=None,
+        help="Path to a text file with one EFTA number per line; only those PDFs will be processed (local mode only)",
+    )
+    parser.add_argument(
+        "--source",
+        choices=["local", "r2"],
+        default="local",
+        help="Source of PDFs: 'local' reads from local filesystem (default), "
+             "'r2' downloads each PDF from R2 on demand using r2_key from the database",
+    )
+    parser.add_argument(
+        "--temp-dir",
+        type=str,
+        default=None,
+        help="Directory for temporary PDF downloads in R2 mode (default: system temp). "
+             "Needs ~(workers × avg PDF size) free space.",
+    )
 
     args = parser.parse_args()
+
+    efta_list = None
+    if args.efta_list:
+        if args.source == "r2":
+            logger.warning("--efta-list is ignored in R2 mode")
+        else:
+            with open(args.efta_list) as f:
+                efta_list = {line.strip().upper() for line in f if line.strip()}
+            logger.info(f"Loaded {len(efta_list)} EFTAs from {args.efta_list}")
 
     process_dataset(
         dataset_name=args.dataset,
@@ -776,6 +971,9 @@ Examples:
         workers=args.workers,
         resume_from=args.resume_from,
         limit=args.limit,
+        efta_list=efta_list,
+        source=args.source,
+        temp_dir=Path(args.temp_dir) if args.temp_dir else None,
     )
 
 

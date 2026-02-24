@@ -14,7 +14,39 @@ public class MediaController : ControllerBase
     private readonly IMediaRepository _repository;
     private readonly IMediaFileService _mediaFileService;
     private readonly IMapper _mapper;
-    private static readonly string ThumbnailCacheDir = "/data/video_thumbnails";
+    // Limit concurrent ffmpeg processes to avoid saturating R2 bandwidth
+    private static readonly SemaphoreSlim ThumbnailSemaphore = new(2, 2);
+    private static readonly string ThumbnailCacheDir = System.Runtime.InteropServices.RuntimeInformation
+        .IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows)
+        ? Path.Combine(Path.GetTempPath(), "epstein_video_thumbnails")
+        : "/data/video_thumbnails";
+    private static readonly string FfmpegPath = ResolveFfmpeg();
+
+    private static string ResolveFfmpeg()
+    {
+        // On Linux, just use "ffmpeg" from PATH
+        if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+                System.Runtime.InteropServices.OSPlatform.Windows))
+            return "ffmpeg";
+
+        // Check common Windows locations
+        var candidates = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft", "WinGet", "Links", "ffmpeg.exe"),
+            @"C:\ffmpeg\bin\ffmpeg.exe",
+            @"C:\tools\ffmpeg\bin\ffmpeg.exe",
+            @"C:\ProgramData\chocolatey\bin\ffmpeg.exe",
+        };
+
+        foreach (var path in candidates)
+        {
+            if (System.IO.File.Exists(path))
+                return path;
+        }
+
+        return "ffmpeg"; // fallback to PATH
+    }
 
     public MediaController(IMediaRepository repository, IMediaFileService mediaFileService, IMapper mapper)
     {
@@ -55,6 +87,21 @@ public class MediaController : ControllerBase
         // Use simple GetByIdAsync to avoid missing table errors
         var media = await _repository.GetByIdAsync(id, cancellationToken);
         if (media == null) return NotFound();
+        return Ok(_mapper.Map<MediaFileDto>(media));
+    }
+
+    [HttpGet("find-by-name")]
+    public async Task<ActionResult<MediaFileDto>> FindByFilename(
+        [FromQuery] string filename,
+        [FromQuery] string? mediaType = null,
+        [FromQuery] bool excludeDocumentScans = false,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(filename))
+            return BadRequest("Filename is required");
+
+        var media = await _repository.FindByFilenameAsync(filename.Trim(), mediaType, excludeDocumentScans, cancellationToken);
+        if (media == null) return NotFound("No media file matching that filename");
         return Ok(_mapper.Map<MediaFileDto>(media));
     }
 
@@ -193,10 +240,19 @@ public class MediaController : ControllerBase
         if (string.IsNullOrEmpty(media.FilePath))
             return NotFound("Video file path not available.");
 
+        // Resolve video source: local file or R2 URL
         var videoPath = _mediaFileService.FindMedia(media.FilePath);
-        if (string.IsNullOrEmpty(videoPath) || !System.IO.File.Exists(videoPath))
-            return NotFound("Video file not found on disk.");
+        var isLocal = !string.IsNullOrEmpty(videoPath) && System.IO.File.Exists(videoPath);
+        string? videoR2Url = null;
 
+        if (!isLocal)
+        {
+            videoR2Url = _mediaFileService.GetR2Url(media.FilePath);
+            if (videoR2Url == null)
+                return NotFound("Video file not found on disk or R2.");
+        }
+
+        var ffmpegInput = isLocal ? videoPath! : videoR2Url!;
         var thumbnailPath = Path.Combine(ThumbnailCacheDir, $"{id}.jpg");
 
         // Return cached thumbnail if exists
@@ -205,43 +261,24 @@ public class MediaController : ControllerBase
             return PhysicalFile(thumbnailPath, "image/jpeg", enableRangeProcessing: true);
         }
 
-        // Generate thumbnail using FFmpeg
+        // Generate thumbnail using FFmpeg (works with both local files and URLs)
+        // -ss BEFORE -i = input seeking (fast, no full download for HTTP sources)
+        // Limit concurrency to avoid saturating R2 bandwidth with many ffmpeg processes
+        if (!await ThumbnailSemaphore.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken))
+        {
+            // Too many concurrent thumbnail requests - return 503 so browser retries later
+            Response.Headers["Retry-After"] = "2";
+            return StatusCode(503, "Thumbnail generation busy, retry shortly");
+        }
+
         try
         {
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "ffmpeg",
-                    Arguments = $"-i \"{videoPath}\" -ss 00:00:01 -vframes 1 -vf \"scale=320:-1\" -y \"{thumbnailPath}\"",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
+            var timeoutMs = isLocal ? 15000 : 30000;
 
-            process.Start();
-            await process.WaitForExitAsync(cancellationToken);
+            var success = await RunFfmpegThumbnail(ffmpegInput, thumbnailPath, 1, timeoutMs, cancellationToken);
 
-            if (process.ExitCode != 0 || !System.IO.File.Exists(thumbnailPath))
-            {
-                // Try at 0 seconds if 1 second failed (video might be shorter)
-                process = new Process
-                {
-                    StartInfo = new ProcessStartInfo
-                    {
-                        FileName = "ffmpeg",
-                        Arguments = $"-i \"{videoPath}\" -ss 00:00:00 -vframes 1 -vf \"scale=320:-1\" -y \"{thumbnailPath}\"",
-                        RedirectStandardOutput = true,
-                        RedirectStandardError = true,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    }
-                };
-                process.Start();
-                await process.WaitForExitAsync(cancellationToken);
-            }
+            if (!success)
+                success = await RunFfmpegThumbnail(ffmpegInput, thumbnailPath, 0, timeoutMs, cancellationToken);
 
             if (System.IO.File.Exists(thumbnailPath))
             {
@@ -253,6 +290,10 @@ public class MediaController : ControllerBase
         catch (Exception ex)
         {
             return StatusCode(500, $"Error generating thumbnail: {ex.Message}");
+        }
+        finally
+        {
+            ThumbnailSemaphore.Release();
         }
     }
 
@@ -268,5 +309,39 @@ public class MediaController : ControllerBase
             isConfigured = _mediaFileService.IsConfigured,
             searchPaths = _mediaFileService.SearchPaths
         });
+    }
+
+    private static async Task<bool> RunFfmpegThumbnail(string input, string outputPath, int seekSeconds, int timeoutMs, CancellationToken cancellationToken)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = FfmpegPath,
+                Arguments = $"-ss {seekSeconds} -i \"{input}\" -vframes 1 -vf \"scale=320:-1\" -update 1 -y \"{outputPath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+
+        process.Start();
+        // Drain stdout/stderr to prevent pipe buffer deadlock
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(timeoutMs);
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(true); } catch { }
+        }
+
+        return process.ExitCode == 0 && System.IO.File.Exists(outputPath);
     }
 }
