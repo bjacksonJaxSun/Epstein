@@ -1,0 +1,13 @@
+{
+  "watchFolder": "C:\\RemoteWorker\\commands",
+  "resultsFolder": "C:\\RemoteWorker\\results",
+  "logsFolder": "C:\\RemoteWorker\\logs",
+  "pollIntervalMs": 1000,
+  "commandTimeoutSeconds": 300,
+  "allowedCommands": [],
+  "blockedCommands": ["Remove-Item -Recurse C:\\", "Format-", "Clear-Disk"],
+  "maxConcurrentJobs": 3,
+  "enableLogging": true,
+  "logRetentionDays": 30,
+  "workerName": "Worker-01"
+}
