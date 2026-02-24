@@ -116,6 +116,26 @@ def upload_to_r2(s3_client, bucket: str, key: str, data: bytes, content_type: st
         return False
 
 
+def upload_photos_parallel(s3_client, bucket: str, photos: list[tuple[str, bytes, str]]) -> int:
+    """Upload multiple photos in parallel. Returns count of successful uploads.
+
+    photos: list of (r2_key, image_bytes, content_type) tuples
+    """
+    if not photos:
+        return 0
+
+    successful = 0
+    with ThreadPoolExecutor(max_workers=min(len(photos), 4)) as executor:
+        futures = {
+            executor.submit(upload_to_r2, s3_client, bucket, key, data, ct): key
+            for key, data, ct in photos
+        }
+        for future in as_completed(futures):
+            if future.result():
+                successful += 1
+    return successful
+
+
 # ============================================
 # IMAGE CLASSIFICATION (OpenCV Heuristics)
 # ============================================
@@ -270,6 +290,8 @@ def process_pdf(
 ) -> dict:
     """Extract embedded images from a single PDF, classify, and upload photos.
 
+    OPTIMIZED: Collects all photos first, uploads in parallel, then batch commits DB.
+
     source_r2_key: when set (R2 mode), the photo R2 key is derived from the
     source PDF's R2 key directory rather than the local relative path.
 
@@ -297,10 +319,7 @@ def process_pdf(
         return stats
 
     # Determine the directory prefix for photo R2 keys.
-    # R2 mode: derive from the source PDF's known R2 key (authoritative).
-    # Local mode: derive from the PDF's path relative to the dataset base.
     if source_r2_key:
-        # e.g. "DataSet_10/0001/EFTA01262782.pdf" -> "DataSet_10/0001"
         photo_r2_dir = str(Path(source_r2_key).parent).replace("\\", "/")
     else:
         try:
@@ -310,10 +329,9 @@ def process_pdf(
         rel_dir = str(rel_path.parent).replace("\\", "/")
         photo_r2_dir = dataset_name if rel_dir == "." else f"{dataset_name}/{rel_dir}"
 
-    # EFTA number from filename (e.g. EFTA00000002.pdf -> EFTA00000002)
-    efta_stem = pdf_path.stem  # e.g. "EFTA00000002"
+    efta_stem = pdf_path.stem
 
-    # Look up source document_id for this EFTA
+    # Look up source document_id for this EFTA (single query)
     source_doc_id = None
     try:
         result = db_session.execute(
@@ -329,19 +347,22 @@ def process_pdf(
         except Exception:
             pass
 
+    # Collect photos for batch upload and DB insert
+    photos_to_upload = []  # (r2_key, img_bytes, content_type)
+    db_records = []  # dict for batch insert
+
     try:
         for page_num in range(len(doc)):
             page = doc[page_num]
 
-            # OCR detection: if the page has no/minimal extractable text it's
-            # a scanned image and will need OCR.  We only flip needs_ocr once.
+            # OCR detection
             if not stats["needs_ocr"]:
                 try:
                     page_text = page.get_text().strip()
                     if len(page_text) < 50:
                         stats["needs_ocr"] = True
                 except Exception:
-                    pass  # don't let text-check errors stop extraction
+                    pass
 
             image_list = page.get_images(full=True)
 
@@ -363,18 +384,15 @@ def process_pdf(
                 img_width = base_image.get("width", 0)
                 img_height = base_image.get("height", 0)
 
-                # Skip tiny images (icons, artifacts, line separators)
                 if img_width < MIN_WIDTH or img_height < MIN_HEIGHT:
                     stats["skipped_small"] += 1
                     continue
 
-                # Decode for classification
                 cv_image = decode_image(img_bytes, img_ext)
                 if cv_image is None:
                     stats["errors"] += 1
                     continue
 
-                # SHA-256 checksum for dedup within this run
                 checksum = hashlib.sha256(img_bytes).hexdigest()
 
                 # Thread-safe dedup check
@@ -390,21 +408,6 @@ def process_pdf(
                         continue
                     seen_checksums.add(checksum)
 
-                # Look up existing DB record (we may update it)
-                existing_media_id = None
-                try:
-                    existing_row = db_session.execute(
-                        text("SELECT media_file_id FROM media_files WHERE checksum = :cs LIMIT 1"),
-                        {"cs": checksum},
-                    ).fetchone()
-                    if existing_row:
-                        existing_media_id = existing_row[0]
-                except Exception:
-                    try:
-                        db_session.rollback()
-                    except Exception:
-                        pass
-
                 # Classify: document scan or real photo?
                 metrics = calculate_metrics(cv_image)
                 is_doc, doc_score = is_document_scan(metrics)
@@ -413,93 +416,92 @@ def process_pdf(
                     stats["docs_skipped"] += 1
                     continue
 
-                # It's a photo! Build the R2 key using the pre-computed directory.
-                # e.g. DataSet_10/0001/EFTA01262782_p1_img1.png
                 r2_key = f"{photo_r2_dir}/{efta_stem}_p{page_num + 1}_img{img_idx + 1}.{img_ext}"
-
                 content_type = get_content_type(img_ext)
                 file_size = len(img_bytes)
+                file_name = f"{efta_stem}_p{page_num + 1}_img{img_idx + 1}.{img_ext}"
 
                 stats["photos_found"] += 1
 
                 if dry_run:
-                    existing_tag = " (exists in DB)" if existing_media_id else " (NEW)"
                     logger.info(
                         f"  [DRY-RUN] Would upload: {r2_key} "
                         f"({img_width}x{img_height}, score={doc_score}, "
                         f"color_var={metrics['color_variance']:.1f}, "
-                        f"white={metrics['white_ratio']:.2f}){existing_tag}"
+                        f"white={metrics['white_ratio']:.2f})"
                     )
                     continue
 
-                # Upload to R2
-                if upload_to_r2(s3_client, R2_BUCKET_NAME, r2_key, img_bytes, content_type):
-                    stats["uploaded"] += 1
-
-                    # Upsert media_files record
-                    try:
-                        file_name = f"{efta_stem}_p{page_num + 1}_img{img_idx + 1}.{img_ext}"
-                        now_str = time.strftime("%Y-%m-%d %H:%M:%S")
-
-                        if existing_media_id:
-                            # Update ALL records with this checksum (handles duplicates)
-                            db_session.execute(
-                                text("""
-                                    UPDATE media_files
-                                    SET file_path = :file_path,
-                                        is_likely_photo = true,
-                                        updated_at = :now
-                                    WHERE checksum = :checksum
-                                """),
-                                {
-                                    "file_path": r2_key,
-                                    "now": now_str,
-                                    "checksum": checksum,
-                                },
-                            )
-                        else:
-                            # Insert new record
-                            db_session.execute(
-                                text("""
-                                    INSERT INTO media_files (
-                                        file_path, file_name, media_type, file_format,
-                                        file_size_bytes, checksum, width_pixels, height_pixels,
-                                        source_document_id, is_likely_photo, created_at, updated_at
-                                    ) VALUES (
-                                        :file_path, :file_name, 'image', :file_format,
-                                        :file_size, :checksum, :width, :height,
-                                        :source_doc_id, true, :now, :now
-                                    )
-                                """),
-                                {
-                                    "file_path": r2_key,
-                                    "file_name": file_name,
-                                    "file_format": img_ext,
-                                    "file_size": file_size,
-                                    "checksum": checksum,
-                                    "width": img_width,
-                                    "height": img_height,
-                                    "source_doc_id": source_doc_id,
-                                    "now": now_str,
-                                },
-                            )
-                        db_session.commit()
-                    except Exception as e:
-                        logger.error(f"  DB insert failed for {r2_key}: {e}")
-                        db_session.rollback()
-                else:
-                    stats["errors"] += 1
+                # Queue for batch upload
+                photos_to_upload.append((r2_key, img_bytes, content_type))
+                db_records.append({
+                    "file_path": r2_key,
+                    "file_name": file_name,
+                    "file_format": img_ext,
+                    "file_size": file_size,
+                    "checksum": checksum,
+                    "width": img_width,
+                    "height": img_height,
+                    "source_doc_id": source_doc_id,
+                })
 
     except Exception as e:
-        logger.error(f"Error processing {pdf_path.name}: {e}")
+        logger.error(f"Error extracting from {pdf_path.name}: {e}")
         stats["errors"] += 1
-        # Ensure session is clean for next use
-        try:
-            db_session.rollback()
-        except Exception:
-            pass
     finally:
         doc.close()
+
+    # Batch upload photos in parallel
+    if photos_to_upload and not dry_run:
+        stats["uploaded"] = upload_photos_parallel(s3_client, R2_BUCKET_NAME, photos_to_upload)
+        stats["errors"] += len(photos_to_upload) - stats["uploaded"]
+
+        # Batch insert DB records (single transaction)
+        if db_records:
+            try:
+                now_str = time.strftime("%Y-%m-%d %H:%M:%S")
+                for rec in db_records:
+                    rec["now"] = now_str
+                    # Check if record exists first (no unique constraint on checksum)
+                    existing = db_session.execute(
+                        text("SELECT media_file_id FROM media_files WHERE checksum = :checksum LIMIT 1"),
+                        {"checksum": rec["checksum"]},
+                    ).fetchone()
+                    if existing:
+                        # Update existing record
+                        db_session.execute(
+                            text("""
+                                UPDATE media_files
+                                SET file_path = :file_path,
+                                    is_likely_photo = true,
+                                    updated_at = :now
+                                WHERE checksum = :checksum
+                            """),
+                            rec,
+                        )
+                    else:
+                        # Insert new record
+                        db_session.execute(
+                            text("""
+                                INSERT INTO media_files (
+                                    file_path, file_name, media_type, file_format,
+                                    file_size_bytes, checksum, width_pixels, height_pixels,
+                                    source_document_id, is_likely_photo, created_at, updated_at
+                                ) VALUES (
+                                    :file_path, :file_name, 'image', :file_format,
+                                    :file_size, :checksum, :width, :height,
+                                    :source_doc_id, true, :now, :now
+                                )
+                            """),
+                            rec,
+                        )
+                db_session.commit()  # Single commit for all records
+            except Exception as e:
+                logger.error(f"  DB batch insert failed for {efta_stem}: {e}")
+                try:
+                    db_session.rollback()
+                except Exception:
+                    pass
 
     return stats
 
@@ -508,8 +510,17 @@ def process_pdf(
 # MAIN PROCESSING LOOP
 # ============================================
 
+def item_label(item) -> str:
+    """Return a human-readable label for a work item (Path or tuple)."""
+    if isinstance(item, tuple):
+        return item[0]  # EFTA number from (efta, r2_key)
+    return str(item.name) if hasattr(item, 'name') else str(item)
+
+
 def _stamp_checked(db_session, efta_stem: str, needs_ocr: bool = False):
     """Write photos_checked_at and ocr_status for an EFTA. Silently skips on error.
+
+    Updates from either NULL or the sentinel '1970-01-01' (claimed but not finished).
 
     ocr_status values:
       'pending'     — at least one page has no extractable text (scanned, needs OCR)
@@ -521,7 +532,8 @@ def _stamp_checked(db_session, efta_stem: str, needs_ocr: bool = False):
             text(
                 "UPDATE documents "
                 "SET photos_checked_at = NOW(), ocr_status = :ocr_status "
-                "WHERE efta_number = :efta AND photos_checked_at IS NULL"
+                "WHERE efta_number = :efta "
+                "AND (photos_checked_at IS NULL OR photos_checked_at = '1970-01-01 00:00:00')"
             ),
             {"efta": efta_stem, "ocr_status": ocr_status},
         )
@@ -654,6 +666,61 @@ def get_unprocessed_r2_pdfs(
     return results
 
 
+def claim_batch_r2_pdfs(
+    dataset_name: str,
+    db_session,
+    batch_size: int = 100,
+) -> list[tuple[str, str]]:
+    """Atomically claim a batch of PDFs for processing using FOR UPDATE SKIP LOCKED.
+
+    This prevents multiple machines from processing the same PDFs.
+    Returns list of (efta_number, r2_key) tuples that are now claimed.
+    """
+    try:
+        # Use FOR UPDATE SKIP LOCKED to claim rows atomically
+        # This skips rows already locked by other transactions
+        rows = db_session.execute(
+            text("""
+                SELECT efta_number, r2_key
+                FROM documents
+                WHERE photos_checked_at IS NULL
+                  AND r2_key IS NOT NULL
+                  AND r2_key LIKE :prefix
+                ORDER BY efta_number
+                LIMIT :batch_size
+                FOR UPDATE SKIP LOCKED
+            """),
+            {"prefix": f"{dataset_name}/%", "batch_size": batch_size},
+        ).fetchall()
+
+        if not rows:
+            return []
+
+        efta_numbers = [r[0] for r in rows]
+
+        # Mark as "in progress" with a sentinel timestamp (epoch)
+        # This prevents other machines from claiming these
+        db_session.execute(
+            text("""
+                UPDATE documents
+                SET photos_checked_at = '1970-01-01 00:00:00'
+                WHERE efta_number = ANY(:eftas)
+            """),
+            {"eftas": efta_numbers},
+        )
+        db_session.commit()
+
+        return [(r[0], r[1]) for r in rows]
+
+    except Exception as e:
+        logger.error(f"Failed to claim batch: {e}")
+        try:
+            db_session.rollback()
+        except Exception:
+            pass
+        return []
+
+
 def download_from_r2(s3_client, r2_key: str, temp_dir: Path) -> Path:
     """Download a PDF from R2 to temp_dir. Returns the local temp path."""
     stem = Path(r2_key).stem
@@ -708,6 +775,7 @@ def process_dataset(
             pdfs = pdfs[:limit]
             logger.info(f"Limited to {limit} PDFs")
         work_items = pdfs  # list[Path]
+        initial_count = len(work_items)
 
     else:  # source == "r2"
         # Set up temp directory for PDF downloads
@@ -716,6 +784,7 @@ def process_dataset(
         temp_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"R2 mode: temp dir = {temp_dir}")
 
+        # Get initial count for progress display (doesn't claim anything)
         db_init = SessionLocal()
         try:
             r2_work = get_unprocessed_r2_pdfs(dataset_name, db_init, limit, resume_from)
@@ -725,7 +794,10 @@ def process_dataset(
         if not r2_work:
             logger.info(f"No unprocessed R2 PDFs found for {dataset_name} — all done or r2_key not yet populated.")
             return
-        work_items = r2_work  # list[tuple[efta, r2_key]]
+
+        initial_count = len(r2_work)
+        logger.info(f"R2 work queue: {initial_count} unprocessed PDFs (will claim in batches)")
+        work_items = []  # Will be populated via batch claiming
 
     # R2 client always needed (uploads in both modes; downloads in R2 mode)
     s3_client = create_r2_client()
@@ -744,7 +816,7 @@ def process_dataset(
     }
 
     start_time = time.time()
-    logger.info(f"Processing {len(work_items)} PDFs from {dataset_name} "
+    logger.info(f"Processing ~{initial_count} PDFs from {dataset_name} "
                 f"(source={source}, dry_run={dry_run}, workers={workers})")
 
     if workers <= 1:
@@ -822,68 +894,188 @@ def process_dataset(
         if worker.is_alive():
             worker.terminate()
     else:
-        # Parallel processing with thread pool
-        # Each worker gets its own DB session; shared set guarded by lock
+        # Parallel processing with prefetch for R2 mode
         checksums_lock = threading.Lock()
 
-        def worker_fn(item) -> dict:
-            """item is a Path (local mode) or (efta, r2_key) tuple (R2 mode)."""
-            session = SessionLocal()
-            temp_path = None
-            try:
-                if source == "r2":
-                    efta, r2_key = item
-                    temp_path = temp_dir / f"{efta}_{threading.get_ident()}.pdf"
-                    if not dry_run:
-                        s3_client.download_file(R2_BUCKET_NAME, r2_key, str(temp_path))
-                    pdf_path = temp_path
-                else:
-                    pdf_path = item
-                    efta = pdf_path.stem
-                    r2_key = None
+        if source == "r2" and not dry_run:
+            # PREFETCH MODE with BATCH CLAIMING: Claim batches atomically to prevent
+            # race conditions when multiple machines process the same dataset.
+            prefetch_queue = queue_module.Queue(maxsize=workers * 2)  # Buffer ahead
+            download_errors = {"count": 0}
+            stop_download = threading.Event()
+            claimed_total = {"n": 0}
 
-                stats = process_pdf(
-                    pdf_path, dataset_name, dataset_path,
-                    s3_client, session, dry_run, seen_checksums,
-                    checksums_lock, source_r2_key=r2_key,
-                )
-                if not dry_run:
-                    _stamp_checked(session, efta, needs_ocr=stats.get("needs_ocr", False))
-                return stats
-            finally:
-                session.close()
-                if temp_path and temp_path.exists():
-                    try:
-                        temp_path.unlink()
-                    except Exception:
-                        pass
+            processed_count = {"n": 0}
+            processed_lock = threading.Lock()
 
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            futures = {executor.submit(worker_fn, item): item for item in work_items}
+            # Batch size for claiming - larger batches = fewer DB round trips
+            CLAIM_BATCH_SIZE = 200
 
-            for i, future in enumerate(as_completed(futures)):
-                item = futures[future]
+            def download_worker():
+                """Claim batches of PDFs and download them to prefetch queue."""
+                local_s3 = create_r2_client()
+                db_session = SessionLocal()
                 try:
-                    stats = future.result()
-                    total_stats["pdfs_processed"] += 1
-                    for key in ["photos_found", "docs_skipped", "uploaded", "errors", "skipped_small", "skipped_dup"]:
-                        total_stats[key] += stats.get(key, 0)
-                except Exception as e:
-                    logger.error(f"Worker error for {item_label(item)}: {e}")
-                    total_stats["errors"] += 1
+                    while not stop_download.is_set():
+                        # Claim next batch atomically
+                        batch = claim_batch_r2_pdfs(dataset_name, db_session, CLAIM_BATCH_SIZE)
+                        if not batch:
+                            logger.info("No more PDFs to claim - download worker done")
+                            break
 
-                if (i + 1) % 50 == 0 or (i + 1) == len(work_items):
-                    elapsed = time.time() - start_time
-                    rate = total_stats["pdfs_processed"] / elapsed if elapsed > 0 else 0
-                    logger.info(
-                        f"Progress: {total_stats['pdfs_processed']}/{len(work_items)} PDFs "
-                        f"({rate:.1f}/s) | "
-                        f"photos={total_stats['photos_found']} "
-                        f"uploaded={total_stats['uploaded']} "
-                        f"docs_skipped={total_stats['docs_skipped']} "
-                        f"dups={total_stats['skipped_dup']} "
-                        f"errors={total_stats['errors']}"
+                        claimed_total["n"] += len(batch)
+                        logger.debug(f"Claimed batch of {len(batch)} PDFs (total claimed: {claimed_total['n']})")
+
+                        for efta, r2_key in batch:
+                            if stop_download.is_set():
+                                break
+                            temp_path = temp_dir / f"{efta}_{threading.get_ident()}.pdf"
+                            try:
+                                local_s3.download_file(R2_BUCKET_NAME, r2_key, str(temp_path))
+                                prefetch_queue.put((efta, r2_key, temp_path))
+                            except Exception as e:
+                                logger.error(f"Download failed for {efta}: {e}")
+                                download_errors["count"] += 1
+                                # Put error marker so processing continues
+                                prefetch_queue.put((efta, r2_key, None))
+                finally:
+                    db_session.close()
+
+                # Signal end of downloads
+                for _ in range(workers):
+                    prefetch_queue.put(None)
+
+            # Start download threads (fewer than workers, downloads are fast)
+            download_pool = ThreadPoolExecutor(max_workers=min(workers, 8))
+            download_future = download_pool.submit(download_worker)
+
+            def process_worker() -> list:
+                """Process PDFs from prefetch queue."""
+                session = SessionLocal()
+                local_stats = []
+                try:
+                    while True:
+                        item = prefetch_queue.get()
+                        if item is None:
+                            break
+                        efta, r2_key, temp_path = item
+                        if temp_path is None:
+                            local_stats.append({"errors": 1, "photos_found": 0, "docs_skipped": 0,
+                                               "uploaded": 0, "skipped_small": 0, "skipped_dup": 0})
+                            with processed_lock:
+                                processed_count["n"] += 1
+                            continue
+                        try:
+                            stats = process_pdf(
+                                temp_path, dataset_name, dataset_path,
+                                s3_client, session, dry_run, seen_checksums,
+                                checksums_lock, source_r2_key=r2_key,
+                            )
+                            _stamp_checked(session, efta, needs_ocr=stats.get("needs_ocr", False))
+                            local_stats.append(stats)
+                            with processed_lock:
+                                processed_count["n"] += 1
+                        finally:
+                            if temp_path.exists():
+                                try:
+                                    temp_path.unlink()
+                                except Exception:
+                                    pass
+                finally:
+                    session.close()
+                return local_stats
+
+            # Run processing workers
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                process_futures = [executor.submit(process_worker) for _ in range(workers)]
+
+                # Monitor progress while waiting
+                last_logged = 0
+                while not all(f.done() for f in process_futures):
+                    time.sleep(5)
+                    with processed_lock:
+                        current = processed_count["n"]
+                    claimed = claimed_total["n"]
+                    if current > last_logged and (current - last_logged >= 50 or (claimed > 0 and current == claimed)):
+                        elapsed = time.time() - start_time
+                        rate = current / elapsed if elapsed > 0 else 0
+                        logger.info(f"Progress: {current}/{claimed} claimed (~{initial_count} total) PDFs ({rate:.1f}/s)")
+                        last_logged = current
+
+                # Collect results
+                for future in process_futures:
+                    try:
+                        for stats in future.result():
+                            total_stats["pdfs_processed"] += 1
+                            for key in ["photos_found", "docs_skipped", "uploaded", "errors", "skipped_small", "skipped_dup"]:
+                                total_stats[key] += stats.get(key, 0)
+                    except Exception as e:
+                        logger.error(f"Process worker error: {e}")
+                        total_stats["errors"] += 1
+
+            stop_download.set()
+            download_pool.shutdown(wait=False)
+
+        else:
+            # NON-PREFETCH MODE: Standard parallel processing (local mode or dry-run)
+            def worker_fn(item) -> dict:
+                """item is a Path (local mode) or (efta, r2_key) tuple (R2 mode)."""
+                session = SessionLocal()
+                temp_path = None
+                try:
+                    if source == "r2":
+                        efta, r2_key = item
+                        temp_path = temp_dir / f"{efta}_{threading.get_ident()}.pdf"
+                        if not dry_run:
+                            s3_client.download_file(R2_BUCKET_NAME, r2_key, str(temp_path))
+                        pdf_path = temp_path
+                    else:
+                        pdf_path = item
+                        efta = pdf_path.stem
+                        r2_key = None
+
+                    stats = process_pdf(
+                        pdf_path, dataset_name, dataset_path,
+                        s3_client, session, dry_run, seen_checksums,
+                        checksums_lock, source_r2_key=r2_key,
                     )
+                    if not dry_run:
+                        _stamp_checked(session, efta, needs_ocr=stats.get("needs_ocr", False))
+                    return stats
+                finally:
+                    session.close()
+                    if temp_path and temp_path.exists():
+                        try:
+                            temp_path.unlink()
+                        except Exception:
+                            pass
+
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {executor.submit(worker_fn, item): item for item in work_items}
+
+                for i, future in enumerate(as_completed(futures)):
+                    item = futures[future]
+                    try:
+                        stats = future.result()
+                        total_stats["pdfs_processed"] += 1
+                        for key in ["photos_found", "docs_skipped", "uploaded", "errors", "skipped_small", "skipped_dup"]:
+                            total_stats[key] += stats.get(key, 0)
+                    except Exception as e:
+                        logger.error(f"Worker error for {item_label(item)}: {e}")
+                        total_stats["errors"] += 1
+
+                    if (i + 1) % 50 == 0 or (i + 1) == len(work_items):
+                        elapsed = time.time() - start_time
+                        rate = total_stats["pdfs_processed"] / elapsed if elapsed > 0 else 0
+                        logger.info(
+                            f"Progress: {total_stats['pdfs_processed']}/{len(work_items)} PDFs "
+                            f"({rate:.1f}/s) | "
+                            f"photos={total_stats['photos_found']} "
+                            f"uploaded={total_stats['uploaded']} "
+                            f"docs_skipped={total_stats['docs_skipped']} "
+                            f"dups={total_stats['skipped_dup']} "
+                            f"errors={total_stats['errors']}"
+                        )
 
     # Final summary
     elapsed = time.time() - start_time
