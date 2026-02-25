@@ -76,8 +76,9 @@ function Send-RemoteCommand {
         [ValidateSet("powershell", "cmd", "process-start", "process-stop", "status", "file-transfer")]
         [string]$Action,
 
-        [Parameter(Mandatory)]
-        [string]$Command,
+        [Parameter(Mandatory=$false)]
+        [AllowEmptyString()]
+        [string]$Command = "",
 
         [string]$Worker,
 
@@ -562,20 +563,22 @@ EXAMPLES:
 "@ -ForegroundColor Cyan
 }
 
-# Export functions
-Export-ModuleMember -Function @(
-    'Send-RemoteCommand',
-    'Wait-RemoteResult',
-    'Get-RemoteResult',
-    'Invoke-RemotePowerShell',
-    'Invoke-RemoteCmd',
-    'Start-RemoteProcess',
-    'Stop-RemoteProcess',
-    'Get-RemoteStatus',
-    'Send-FileToWorker',
-    'Get-FileFromWorker',
-    'Update-RemoteWorkerService',
-    'Get-RemoteWorkerVersion',
-    'Undo-RemoteWorkerUpdate',
-    'Show-RemoteWorkerHelp'
-)
+# Export functions when loaded as a module
+if ($MyInvocation.MyCommand.ScriptBlock.Module) {
+    Export-ModuleMember -Function @(
+        'Send-RemoteCommand',
+        'Wait-RemoteResult',
+        'Get-RemoteResult',
+        'Invoke-RemotePowerShell',
+        'Invoke-RemoteCmd',
+        'Start-RemoteProcess',
+        'Stop-RemoteProcess',
+        'Get-RemoteStatus',
+        'Send-FileToWorker',
+        'Get-FileFromWorker',
+        'Update-RemoteWorkerService',
+        'Get-RemoteWorkerVersion',
+        'Undo-RemoteWorkerUpdate',
+        'Show-RemoteWorkerHelp'
+    )
+}
