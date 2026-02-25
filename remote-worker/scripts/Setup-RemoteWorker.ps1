@@ -194,7 +194,7 @@ function Invoke-CommandJob {
     $resultFile = Join-Path $script:Config.resultsFolder "$jobId.json"
     $result | ConvertTo-Json -Depth 10 | Set-Content -Path $resultFile -Encoding UTF8
     $destFolder = if ($result.status -eq "completed") { "completed" } else { "failed" }
-    $destPath = Join-Path $script:Config.watchFolder $destFolder (Split-Path $CommandFile -Leaf)
+    $destPath = Join-Path (Join-Path $script:Config.watchFolder $destFolder) (Split-Path $CommandFile -Leaf)
     Move-Item -Path $CommandFile -Destination $destPath -Force -ErrorAction SilentlyContinue
     return $result
 }
@@ -206,7 +206,7 @@ function Process-CommandFile {
         $command = Get-Content $FilePath -Raw | ConvertFrom-Json
         if (-not $command.id) { $command | Add-Member -NotePropertyName "id" -NotePropertyValue ([guid]::NewGuid().ToString()) }
         Write-Log "Processing: $($command.id)"
-        $processingPath = Join-Path $script:Config.watchFolder "processing" (Split-Path $FilePath -Leaf)
+        $processingPath = Join-Path (Join-Path $script:Config.watchFolder "processing") (Split-Path $FilePath -Leaf)
         Move-Item -Path $FilePath -Destination $processingPath -Force
         Invoke-CommandJob -CommandData $command -CommandFile $processingPath
     } catch { Write-Log "Error: $($_.Exception.Message)" -Level ERROR }

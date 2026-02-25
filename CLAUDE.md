@@ -161,3 +161,57 @@ npm run dev
 ```
 
 Frontend dev server runs on http://localhost:5173 with proxy to backend at localhost:5203.
+
+## Remote Worker System (bobbyhomeep)
+
+A Tailscale-based system for executing commands on remote machines via file-based job queues.
+
+### Quick Start
+
+```powershell
+# Import the client module
+Import-Module "D:\Personal\Epstein\remote-worker\scripts\RemoteWorkerClient.ps1"
+
+# Check worker status
+Get-RemoteStatus
+
+# Run PowerShell commands
+Invoke-RemotePowerShell "Get-Process | Select -First 5"
+
+# Run CMD commands
+Invoke-RemoteCmd "dir C:\Temp"
+
+# Start a process
+Start-RemoteProcess "python.exe" -Arguments "C:\scripts\task.py"
+
+# Stop a process
+Stop-RemoteProcess -ProcessName "python"
+
+# Transfer files
+Send-FileToWorker -LocalPath "C:\local\file.txt" -RemotePath "C:\Temp\file.txt"
+Get-FileFromWorker -RemotePath "C:\Temp\results.csv" -LocalPath "C:\local\results.csv"
+```
+
+### Worker Configuration
+
+| Setting | Value |
+|---------|-------|
+| Worker Name | bobbyhomeep |
+| Tailscale IP | 100.75.137.22 |
+| Commands Share | `\\100.75.137.22\RemoteWorker\commands` |
+| Results Share | `\\100.75.137.22\RemoteWorker\results` |
+
+### Installing on a New Worker
+
+Run as Administrator on the target machine:
+```powershell
+.\remote-worker\scripts\Setup-RemoteWorker.ps1 -WorkerName "WorkerName"
+```
+
+### Files
+
+- Client module: `remote-worker/scripts/RemoteWorkerClient.ps1`
+- Setup script: `remote-worker/scripts/Setup-RemoteWorker.ps1`
+- Service script: `remote-worker/scripts/RemoteWorkerService.ps1`
+- Full documentation: `remote-worker/README.md`
+- Claude skill: `.claude/skills/remote-worker.md`
