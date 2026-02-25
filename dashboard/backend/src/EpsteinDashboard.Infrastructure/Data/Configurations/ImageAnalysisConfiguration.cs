@@ -31,8 +31,8 @@ public class ImageAnalysisConfiguration : IEntityTypeConfiguration<ImageAnalysis
         builder.Property(e => e.IsSensitive).HasColumnName("is_sensitive");
         builder.Property(e => e.ModerationLabels).HasColumnName("moderation_labels");
         builder.Property(e => e.DominantColors).HasColumnName("dominant_colors");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.MediaFile)
             .WithMany(m => m.Analyses)

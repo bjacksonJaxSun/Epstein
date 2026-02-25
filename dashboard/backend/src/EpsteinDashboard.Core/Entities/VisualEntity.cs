@@ -18,7 +18,7 @@ public class VisualEntity
     public string? FacialExpression { get; set; }
     public string? FaceEncoding { get; set; }
     public string? Attributes { get; set; } // JSON
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // Navigation properties
     public MediaFile? MediaFile { get; set; }

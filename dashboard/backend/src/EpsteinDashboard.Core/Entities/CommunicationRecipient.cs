@@ -7,7 +7,7 @@ public class CommunicationRecipient
     public long? PersonId { get; set; }
     public long? OrganizationId { get; set; }
     public string? RecipientType { get; set; }
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // Navigation properties
     public Communication? Communication { get; set; }

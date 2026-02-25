@@ -13,7 +13,7 @@ public class ExtractionLog
     public string? ErrorMessage { get; set; }
     public string? Warnings { get; set; } // JSON
     public int? ProcessingTimeMs { get; set; }
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // Navigation properties
     public Document? Document { get; set; }

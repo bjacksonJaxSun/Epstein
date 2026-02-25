@@ -26,8 +26,8 @@ public class FinancialTransactionConfiguration : IEntityTypeConfiguration<Financ
         builder.Property(e => e.ToAccount).HasColumnName("to_account");
         builder.Property(e => e.BankName).HasColumnName("bank_name");
         builder.Property(e => e.SourceDocumentId).HasColumnName("source_document_id");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.FromPerson)
             .WithMany(p => p.TransactionsAsFrom)

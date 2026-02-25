@@ -212,8 +212,8 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
         public double? Longitude { get; set; }
         public string? OwnerName { get; set; }
         public string? Description { get; set; }
-        public string? CreatedAt { get; set; }
-        public string? UpdatedAt { get; set; }
+        public DateTime? CreatedAt { get; set; }
+        public DateTime? UpdatedAt { get; set; }
         public int EventCount { get; set; }
         public int MediaCount { get; set; }
         public int EvidenceCount { get; set; }

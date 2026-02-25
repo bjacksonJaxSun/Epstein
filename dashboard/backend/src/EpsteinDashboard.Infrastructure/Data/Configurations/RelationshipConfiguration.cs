@@ -16,13 +16,13 @@ public class RelationshipConfiguration : IEntityTypeConfiguration<Relationship>
         builder.Property(e => e.Person2Id).HasColumnName("person2_id");
         builder.Property(e => e.RelationshipType).HasColumnName("relationship_type");
         builder.Property(e => e.RelationshipDescription).HasColumnName("relationship_description");
-        builder.Property(e => e.StartDate).HasColumnName("start_date");
-        builder.Property(e => e.EndDate).HasColumnName("end_date");
+        builder.Property(e => e.StartDate).HasColumnName("start_date").HasColumnType("date");
+        builder.Property(e => e.EndDate).HasColumnName("end_date").HasColumnType("date");
         builder.Property(e => e.IsCurrent).HasColumnName("is_current");
         builder.Property(e => e.SourceDocumentId).HasColumnName("source_document_id");
         builder.Property(e => e.ConfidenceLevel).HasColumnName("confidence_level");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.Person1)
             .WithMany(p => p.RelationshipsAsPerson1)

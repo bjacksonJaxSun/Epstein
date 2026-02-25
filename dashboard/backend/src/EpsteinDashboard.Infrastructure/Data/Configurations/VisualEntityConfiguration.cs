@@ -27,7 +27,7 @@ public class VisualEntityConfiguration : IEntityTypeConfiguration<VisualEntity>
         builder.Property(e => e.FacialExpression).HasColumnName("facial_expression");
         builder.Property(e => e.FaceEncoding).HasColumnName("face_encoding");
         builder.Property(e => e.Attributes).HasColumnName("attributes");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.MediaFile)
             .WithMany(m => m.VisualEntities)

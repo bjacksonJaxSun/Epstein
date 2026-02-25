@@ -18,8 +18,8 @@ public class Person
     public long? FirstMentionedInDocId { get; set; }
     public string? ConfidenceLevel { get; set; }
     public string? Notes { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public Document? FirstMentionedInDocument { get; set; }

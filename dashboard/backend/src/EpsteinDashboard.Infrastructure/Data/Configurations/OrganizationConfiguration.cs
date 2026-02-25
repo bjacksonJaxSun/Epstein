@@ -19,8 +19,8 @@ public class OrganizationConfiguration : IEntityTypeConfiguration<Organization>
         builder.Property(e => e.Website).HasColumnName("website");
         builder.Property(e => e.Description).HasColumnName("description");
         builder.Property(e => e.FirstMentionedInDocId).HasColumnName("first_mentioned_in_doc_id");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.ParentOrganization)
             .WithMany(e => e.ChildOrganizations)

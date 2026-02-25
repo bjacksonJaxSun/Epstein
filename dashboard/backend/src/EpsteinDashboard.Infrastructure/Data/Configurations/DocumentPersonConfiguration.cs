@@ -18,7 +18,7 @@ public class DocumentPersonConfiguration : IEntityTypeConfiguration<DocumentPers
         builder.Property(e => e.MentionContext).HasColumnName("mention_context");
         builder.Property(e => e.RoleInDocument).HasColumnName("role_in_document");
         builder.Property(e => e.Confidence).HasColumnName("confidence");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
 
         builder.HasIndex(e => new { e.DocumentId, e.PersonId }).IsUnique();
 

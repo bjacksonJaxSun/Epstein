@@ -17,8 +17,8 @@ public class FinancialTransaction
     public string? ToAccount { get; set; }
     public string? BankName { get; set; }
     public long? SourceDocumentId { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public Person? FromPerson { get; set; }

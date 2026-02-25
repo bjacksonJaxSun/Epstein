@@ -9,9 +9,9 @@ public class RelationshipDto
     public string? Person2Name { get; set; }
     public string? RelationshipType { get; set; }
     public string? RelationshipDescription { get; set; }
-    public string? StartDate { get; set; }
-    public string? EndDate { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public bool? IsCurrent { get; set; }
     public string? ConfidenceLevel { get; set; }
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }

@@ -27,8 +27,8 @@ public class PersonConfiguration : IEntityTypeConfiguration<Person>
         builder.Property(e => e.FirstMentionedInDocId).HasColumnName("first_mentioned_in_doc_id");
         builder.Property(e => e.ConfidenceLevel).HasColumnName("confidence_level");
         builder.Property(e => e.Notes).HasColumnName("notes");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.FirstMentionedInDocument)
             .WithMany(d => d.MentionedPersons)

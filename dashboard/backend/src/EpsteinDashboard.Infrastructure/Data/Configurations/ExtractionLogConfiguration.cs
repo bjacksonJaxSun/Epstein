@@ -22,7 +22,7 @@ public class ExtractionLogConfiguration : IEntityTypeConfiguration<ExtractionLog
         builder.Property(e => e.ErrorMessage).HasColumnName("error_message");
         builder.Property(e => e.Warnings).HasColumnName("warnings");
         builder.Property(e => e.ProcessingTimeMs).HasColumnName("processing_time_ms");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.Document)
             .WithMany(d => d.ExtractionLogs)

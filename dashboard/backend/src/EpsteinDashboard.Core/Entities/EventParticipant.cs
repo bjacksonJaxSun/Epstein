@@ -8,7 +8,7 @@ public class EventParticipant
     public long? OrganizationId { get; set; }
     public string? ParticipationRole { get; set; }
     public string? Notes { get; set; }
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // Navigation properties
     public Event? Event { get; set; }

@@ -16,7 +16,7 @@ public class CommunicationRecipientConfiguration : IEntityTypeConfiguration<Comm
         builder.Property(e => e.PersonId).HasColumnName("person_id");
         builder.Property(e => e.OrganizationId).HasColumnName("organization_id");
         builder.Property(e => e.RecipientType).HasColumnName("recipient_type");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.Communication)
             .WithMany(c => c.Recipients)

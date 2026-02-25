@@ -28,8 +28,8 @@ public class MediaFile
     public bool? IsSensitive { get; set; }
     public string? ClassificationLevel { get; set; }
     public bool? IsLikelyPhoto { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public Document? SourceDocument { get; set; }

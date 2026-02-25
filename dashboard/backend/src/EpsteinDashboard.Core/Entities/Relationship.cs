@@ -7,13 +7,13 @@ public class Relationship
     public long Person2Id { get; set; }
     public string? RelationshipType { get; set; }
     public string? RelationshipDescription { get; set; }
-    public string? StartDate { get; set; }
-    public string? EndDate { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public bool? IsCurrent { get; set; }
     public long? SourceDocumentId { get; set; }
     public string? ConfidenceLevel { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public Person? Person1 { get; set; }

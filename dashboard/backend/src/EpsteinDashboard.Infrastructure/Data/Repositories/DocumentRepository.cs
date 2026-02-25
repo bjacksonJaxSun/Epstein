@@ -28,11 +28,11 @@ public class DocumentRepository : BaseRepository<Document>, IDocumentRepository
         if (!string.IsNullOrEmpty(documentType))
             query = query.Where(d => d.DocumentType == documentType);
 
-        if (!string.IsNullOrEmpty(dateFrom))
-            query = query.Where(d => string.Compare(d.DocumentDate, dateFrom) >= 0);
+        if (!string.IsNullOrEmpty(dateFrom) && DateTime.TryParse(dateFrom, out var parsedFrom))
+            query = query.Where(d => d.DocumentDate >= parsedFrom);
 
-        if (!string.IsNullOrEmpty(dateTo))
-            query = query.Where(d => string.Compare(d.DocumentDate, dateTo) <= 0);
+        if (!string.IsNullOrEmpty(dateTo) && DateTime.TryParse(dateTo, out var parsedTo))
+            query = query.Where(d => d.DocumentDate <= parsedTo);
 
         var totalCount = await query.CountAsync(cancellationToken);
 

@@ -6,7 +6,7 @@ public class Document
     public string? EftaNumber { get; set; }
     public string? FilePath { get; set; }
     public string? DocumentType { get; set; }
-    public string? DocumentDate { get; set; }
+    public DateTime? DocumentDate { get; set; }
     public string? DocumentTitle { get; set; }
     public string? Author { get; set; }
     public string? Recipient { get; set; }
@@ -21,8 +21,13 @@ public class Document
     public string? SourceAgency { get; set; }
     public string? ExtractionStatus { get; set; }
     public double? ExtractionConfidence { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public string? VideoPath { get; set; }
+    public string? VideoTranscript { get; set; }
+    public DateTime? PhotosCheckedAt { get; set; }
+    public string? R2Key { get; set; }
+    public string? OcrStatus { get; set; }
 
     // Navigation properties
     public ICollection<DocumentPerson> DocumentPeople { get; set; } = new List<DocumentPerson>();

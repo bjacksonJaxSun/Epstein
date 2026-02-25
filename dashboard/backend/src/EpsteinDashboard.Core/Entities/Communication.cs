@@ -8,13 +8,13 @@ public class Communication
     public long? SenderOrganizationId { get; set; }
     public string? Subject { get; set; }
     public string? BodyText { get; set; }
-    public string? CommunicationDate { get; set; }
+    public DateTime? CommunicationDate { get; set; }
     public string? CommunicationTime { get; set; }
     public long? SourceDocumentId { get; set; }
     public bool? HasAttachments { get; set; }
     public int? AttachmentCount { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public Person? SenderPerson { get; set; }

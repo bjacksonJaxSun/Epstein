@@ -35,11 +35,11 @@ public class EventRepository : BaseRepository<Event>, IEventRepository
 
         IQueryable<Event> filteredQuery = query;
 
-        if (!string.IsNullOrEmpty(dateFrom))
-            filteredQuery = filteredQuery.Where(e => string.Compare(e.EventDate, dateFrom) >= 0);
+        if (!string.IsNullOrEmpty(dateFrom) && DateTime.TryParse(dateFrom, out var parsedFrom))
+            filteredQuery = filteredQuery.Where(e => e.EventDate >= parsedFrom);
 
-        if (!string.IsNullOrEmpty(dateTo))
-            filteredQuery = filteredQuery.Where(e => string.Compare(e.EventDate, dateTo) <= 0);
+        if (!string.IsNullOrEmpty(dateTo) && DateTime.TryParse(dateTo, out var parsedTo))
+            filteredQuery = filteredQuery.Where(e => e.EventDate <= parsedTo);
 
         var totalCount = await filteredQuery.CountAsync(cancellationToken);
 

@@ -295,7 +295,7 @@ public class VisionAnalysisController : ControllerBase
             totalSizeBytes,
             lastDocument?.EftaNumber,
             lastDocument?.FilePath,
-            lastDocument?.CreatedAt,
+            lastDocument?.CreatedAt?.ToString("o"),
             extractionStats.ToDictionary(x => x.Status ?? "unknown", x => x.Count),
             documentsWithText,
             documentsNeedingOcr,

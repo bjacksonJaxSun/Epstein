@@ -22,8 +22,8 @@ public class EvidenceItemConfiguration : IEntityTypeConfiguration<EvidenceItem>
         builder.Property(e => e.CurrentLocation).HasColumnName("current_location");
         builder.Property(e => e.Status).HasColumnName("status");
         builder.Property(e => e.SourceDocumentId).HasColumnName("source_document_id");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.SeizedFromLocation)
             .WithMany(l => l.SeizedEvidenceItems)

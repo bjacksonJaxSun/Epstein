@@ -15,7 +15,7 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(e => e.EftaNumber).HasColumnName("efta_number");
         builder.Property(e => e.FilePath).HasColumnName("file_path");
         builder.Property(e => e.DocumentType).HasColumnName("document_type");
-        builder.Property(e => e.DocumentDate).HasColumnName("document_date");
+        builder.Property(e => e.DocumentDate).HasColumnName("document_date").HasColumnType("date");
         builder.Property(e => e.DocumentTitle).HasColumnName("document_title");
         builder.Property(e => e.Author).HasColumnName("author");
         builder.Property(e => e.Recipient).HasColumnName("recipient");
@@ -30,8 +30,13 @@ public class DocumentConfiguration : IEntityTypeConfiguration<Document>
         builder.Property(e => e.SourceAgency).HasColumnName("source_agency");
         builder.Property(e => e.ExtractionStatus).HasColumnName("extraction_status");
         builder.Property(e => e.ExtractionConfidence).HasColumnName("extraction_confidence");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
+        builder.Property(e => e.VideoPath).HasColumnName("video_path");
+        builder.Property(e => e.VideoTranscript).HasColumnName("video_transcript");
+        builder.Property(e => e.PhotosCheckedAt).HasColumnName("photos_checked_at");
+        builder.Property(e => e.R2Key).HasColumnName("r2_key");
+        builder.Property(e => e.OcrStatus).HasColumnName("ocr_status");
 
         builder.HasIndex(e => e.EftaNumber).IsUnique();
     }

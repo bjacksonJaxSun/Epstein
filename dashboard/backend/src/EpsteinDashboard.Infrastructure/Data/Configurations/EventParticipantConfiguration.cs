@@ -17,7 +17,7 @@ public class EventParticipantConfiguration : IEntityTypeConfiguration<EventParti
         builder.Property(e => e.OrganizationId).HasColumnName("organization_id");
         builder.Property(e => e.ParticipationRole).HasColumnName("participation_role");
         builder.Property(e => e.Notes).HasColumnName("notes");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.Event)
             .WithMany(ev => ev.Participants)

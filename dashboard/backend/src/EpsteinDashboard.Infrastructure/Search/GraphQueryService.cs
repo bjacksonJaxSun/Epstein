@@ -106,11 +106,11 @@ public class GraphQueryService : IGraphQueryService
                 FROM relationships r
                 JOIN path_finder pf ON (r.person1_id = pf.person_id OR r.person2_id = pf.person_id)
                 WHERE pf.depth < @MaxDepth
-                    AND INSTR(pf.path, CAST(
+                    AND POSITION(CAST(
                         CASE
                             WHEN r.person1_id = pf.person_id THEN r.person2_id
                             ELSE r.person1_id
-                        END AS TEXT)) = 0
+                        END AS TEXT) IN pf.path) = 0
             )
             SELECT path, depth
             FROM path_finder

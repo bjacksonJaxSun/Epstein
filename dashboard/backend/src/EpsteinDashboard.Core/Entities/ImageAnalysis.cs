@@ -22,8 +22,8 @@ public class ImageAnalysis
     public bool? IsSensitive { get; set; }
     public string? ModerationLabels { get; set; } // JSON
     public string? DominantColors { get; set; } // JSON
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public MediaFile? MediaFile { get; set; }

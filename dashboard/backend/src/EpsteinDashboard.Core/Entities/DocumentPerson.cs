@@ -9,7 +9,7 @@ public class DocumentPerson
     public string? MentionContext { get; set; }
     public string? RoleInDocument { get; set; }
     public double? Confidence { get; set; }
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     // Navigation properties
     public Document? Document { get; set; }

@@ -39,7 +39,7 @@ public class ExportService : IExportService
                 var docs = await _documentRepository.GetAllAsync(cancellationToken);
                 sb.AppendLine("DocumentId,EftaNumber,DocumentType,DocumentDate,DocumentTitle,Author,Subject,PageCount,ExtractionStatus");
                 foreach (var d in docs)
-                    sb.AppendLine($"{d.DocumentId},{CsvEscape(d.EftaNumber)},{CsvEscape(d.DocumentType)},{CsvEscape(d.DocumentDate)},{CsvEscape(d.DocumentTitle)},{CsvEscape(d.Author)},{CsvEscape(d.Subject)},{d.PageCount},{CsvEscape(d.ExtractionStatus)}");
+                    sb.AppendLine($"{d.DocumentId},{CsvEscape(d.EftaNumber)},{CsvEscape(d.DocumentType)},{d.DocumentDate:yyyy-MM-dd},{CsvEscape(d.DocumentTitle)},{CsvEscape(d.Author)},{CsvEscape(d.Subject)},{d.PageCount},{CsvEscape(d.ExtractionStatus)}");
                 break;
 
             case "people":
@@ -67,14 +67,14 @@ public class ExportService : IExportService
                 var events = await _eventRepository.GetAllAsync(cancellationToken);
                 sb.AppendLine("EventId,EventType,Title,EventDate,ConfidenceLevel,VerificationStatus");
                 foreach (var e in events)
-                    sb.AppendLine($"{e.EventId},{CsvEscape(e.EventType)},{CsvEscape(e.Title)},{CsvEscape(e.EventDate)},{CsvEscape(e.ConfidenceLevel)},{CsvEscape(e.VerificationStatus)}");
+                    sb.AppendLine($"{e.EventId},{CsvEscape(e.EventType)},{CsvEscape(e.Title)},{e.EventDate:yyyy-MM-dd},{CsvEscape(e.ConfidenceLevel)},{CsvEscape(e.VerificationStatus)}");
                 break;
 
             case "relationships":
                 var rels = await _relationshipRepository.GetAllAsync(cancellationToken);
                 sb.AppendLine("RelationshipId,Person1Id,Person2Id,RelationshipType,StartDate,EndDate,IsCurrent,ConfidenceLevel");
                 foreach (var r in rels)
-                    sb.AppendLine($"{r.RelationshipId},{r.Person1Id},{r.Person2Id},{CsvEscape(r.RelationshipType)},{CsvEscape(r.StartDate)},{CsvEscape(r.EndDate)},{r.IsCurrent},{CsvEscape(r.ConfidenceLevel)}");
+                    sb.AppendLine($"{r.RelationshipId},{r.Person1Id},{r.Person2Id},{CsvEscape(r.RelationshipType)},{r.StartDate:yyyy-MM-dd},{r.EndDate:yyyy-MM-dd},{r.IsCurrent},{CsvEscape(r.ConfidenceLevel)}");
                 break;
 
             default:

@@ -6,23 +6,23 @@ public class EventDto
     public string? EventType { get; set; }
     public string? Title { get; set; }
     public string? Description { get; set; }
-    public string? EventDate { get; set; }
+    public DateTime? EventDate { get; set; }
     public string? EventTime { get; set; }
-    public string? EndDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public string? EndTime { get; set; }
     public int? DurationMinutes { get; set; }
     public string? LocationName { get; set; }
     public string? ConfidenceLevel { get; set; }
     public string? VerificationStatus { get; set; }
-    public string? CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }
 
 public class TimelineEventDto
 {
     public long EventId { get; set; }
     public string? Title { get; set; }
-    public string? EventDate { get; set; }
-    public string? EndDate { get; set; }
+    public DateTime? EventDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public string? EventType { get; set; }
     public string? Location { get; set; }
     public List<string> ParticipantNames { get; set; } = new();

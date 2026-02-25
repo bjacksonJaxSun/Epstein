@@ -17,8 +17,8 @@ public class MediaEventConfiguration : IEntityTypeConfiguration<MediaEvent>
         builder.Property(e => e.IsPrimaryEvidence).HasColumnName("is_primary_evidence");
         builder.Property(e => e.SequenceNumber).HasColumnName("sequence_number");
         builder.Property(e => e.RelationshipDescription).HasColumnName("relationship_description");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasIndex(e => new { e.MediaFileId, e.EventId }).IsUnique();
 

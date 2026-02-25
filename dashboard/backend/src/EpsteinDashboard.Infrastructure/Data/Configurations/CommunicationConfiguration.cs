@@ -17,13 +17,13 @@ public class CommunicationConfiguration : IEntityTypeConfiguration<Communication
         builder.Property(e => e.SenderOrganizationId).HasColumnName("sender_organization_id");
         builder.Property(e => e.Subject).HasColumnName("subject");
         builder.Property(e => e.BodyText).HasColumnName("body_text");
-        builder.Property(e => e.CommunicationDate).HasColumnName("communication_date");
+        builder.Property(e => e.CommunicationDate).HasColumnName("communication_date").HasColumnType("date");
         builder.Property(e => e.CommunicationTime).HasColumnName("communication_time");
         builder.Property(e => e.SourceDocumentId).HasColumnName("source_document_id");
         builder.Property(e => e.HasAttachments).HasColumnName("has_attachments");
         builder.Property(e => e.AttachmentCount).HasColumnName("attachment_count");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasOne(e => e.SenderPerson)
             .WithMany(p => p.SentCommunications)

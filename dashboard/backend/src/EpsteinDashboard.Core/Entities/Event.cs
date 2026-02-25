@@ -6,9 +6,9 @@ public class Event
     public string? EventType { get; set; }
     public string? Title { get; set; }
     public string? Description { get; set; }
-    public string? EventDate { get; set; }
+    public DateTime? EventDate { get; set; }
     public string? EventTime { get; set; }
-    public string? EndDate { get; set; }
+    public DateTime? EndDate { get; set; }
     public string? EndTime { get; set; }
     public int? DurationMinutes { get; set; }
     public long? LocationId { get; set; }
@@ -17,8 +17,8 @@ public class Event
     public string? ConfidenceLevel { get; set; }
     public string? VerificationStatus { get; set; }
     public string? Notes { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
     public Location? Location { get; set; }

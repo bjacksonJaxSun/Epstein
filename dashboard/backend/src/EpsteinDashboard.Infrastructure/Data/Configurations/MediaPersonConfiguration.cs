@@ -23,8 +23,8 @@ public class MediaPersonConfiguration : IEntityTypeConfiguration<MediaPerson>
         builder.Property(e => e.Verified).HasColumnName("verified");
         builder.Property(e => e.VerifiedBy).HasColumnName("verified_by");
         builder.Property(e => e.VerifiedDate).HasColumnName("verified_date");
-        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
+        builder.Property(e => e.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamptz");
 
         builder.HasIndex(e => new { e.MediaFileId, e.PersonId }).IsUnique();
 

@@ -6,7 +6,7 @@ public class DocumentDto
     public string? EftaNumber { get; set; }
     public string? FilePath { get; set; }
     public string? DocumentType { get; set; }
-    public string? DocumentDate { get; set; }
+    public DateTime? DocumentDate { get; set; }
     public string? DocumentTitle { get; set; }
     public string? Author { get; set; }
     public string? Recipient { get; set; }
@@ -20,8 +20,8 @@ public class DocumentDto
     public string? SourceAgency { get; set; }
     public string? ExtractionStatus { get; set; }
     public double? ExtractionConfidence { get; set; }
-    public string? CreatedAt { get; set; }
-    public string? UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class DocumentListDto
@@ -29,7 +29,7 @@ public class DocumentListDto
     public long DocumentId { get; set; }
     public string? EftaNumber { get; set; }
     public string? DocumentType { get; set; }
-    public string? DocumentDate { get; set; }
+    public DateTime? DocumentDate { get; set; }
     public string? DocumentTitle { get; set; }
     public string? Author { get; set; }
     public string? Subject { get; set; }
