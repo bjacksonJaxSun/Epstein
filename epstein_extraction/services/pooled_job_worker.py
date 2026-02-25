@@ -10,13 +10,13 @@ Features:
 - Multiple concurrent jobs per worker
 - Pluggable job type handlers
 - Automatic stale job recovery
-- Auto-update from git repository
+- Database-based code distribution (server publishes, clients pull)
 - Graceful shutdown
 
 Usage:
-    python pooled_job_worker.py [--job-types general,ocr] [--max-concurrent 3]
-    python pooled_job_worker.py --check-update   # Check and update if needed
-    python pooled_job_worker.py --no-update      # Skip version check
+    python pooled_job_worker.py --server --job-types general   # Server: publish code + run
+    python pooled_job_worker.py --job-types general            # Client: pull code + run
+    python pooled_job_worker.py --no-update                    # Skip version check
 
 Environment Variables:
     DATABASE_URL: PostgreSQL connection string (default: from .env or hardcoded)
@@ -28,12 +28,10 @@ import socket
 import signal
 import asyncio
 import argparse
-import subprocess
 import hashlib
 import shutil
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Callable, Optional, Any
+from typing import Callable, Optional
 import json
 import logging
 from pathlib import Path
@@ -65,147 +63,193 @@ class WorkerIdentity:
         return f"{self.machine_name}:{self.process_id}:{self.worker_thread}"
 
 
-class AutoUpdater:
+class DatabaseUpdater:
     """
-    Handles automatic updates of the worker service from git repository.
+    Handles code distribution via PostgreSQL.
+
+    Server mode: reads managed files from disk and publishes to the worker_code table.
+    Client mode: checks the DB for newer versions and pulls/writes files, then restarts.
     """
 
-    def __init__(self, repo_path: Optional[Path] = None):
+    # Files managed by the updater, relative to base_dir (epstein_extraction/)
+    MANAGED_FILES = [
+        'services/pooled_job_worker.py',
+        'services/job_handlers/__init__.py',
+        'services/job_handlers/general_handler.py',
+    ]
+
+    def __init__(self, db_url: str, base_dir: Optional[Path] = None):
+        self.db_url = db_url
+        # base_dir = the epstein_extraction/ directory
+        self.base_dir = base_dir or Path(__file__).resolve().parent.parent
+
+    def _get_connection(self):
+        return psycopg2.connect(self.db_url)
+
+    # ------------------------------------------------------------------
+    # Hashing
+    # ------------------------------------------------------------------
+
+    def _file_hash(self, content: str) -> str:
+        """SHA256 of a single file's content."""
+        return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+    def compute_local_hash(self) -> str:
         """
-        Initialize the auto-updater.
-
-        Args:
-            repo_path: Path to the git repository root. Auto-detected if None.
+        Combined hash of all managed files.
+        SHA256 of sorted (relative_path + individual_hash) pairs.
         """
-        self.repo_path = repo_path or self._find_repo_root()
-        self.worker_script = Path(__file__).resolve()
-
-    def _find_repo_root(self) -> Path:
-        """Find the git repository root by walking up the directory tree."""
-        current = Path(__file__).resolve().parent
-        while current != current.parent:
-            if (current / '.git').exists():
-                return current
-            current = current.parent
-        raise RuntimeError("Could not find git repository root")
-
-    def get_local_hash(self) -> str:
-        """Get SHA256 hash of the local worker script (first 16 chars)."""
-        content = self.worker_script.read_bytes()
-        return hashlib.sha256(content).hexdigest()[:16]
-
-    def get_repo_hash(self) -> str:
-        """Get SHA256 hash of the worker script in the repo (first 16 chars)."""
-        # The canonical location in the repo
-        repo_script = self.repo_path / 'epstein_extraction' / 'services' / 'pooled_job_worker.py'
-        if repo_script.exists():
-            content = repo_script.read_bytes()
-            return hashlib.sha256(content).hexdigest()[:16]
-        return self.get_local_hash()
-
-    def git_pull(self) -> tuple[bool, str]:
-        """
-        Pull latest changes from the remote repository.
-
-        Returns:
-            Tuple of (success, output_message)
-        """
-        try:
-            result = subprocess.run(
-                ['git', 'pull', '--ff-only'],
-                cwd=self.repo_path,
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
-            if result.returncode == 0:
-                return True, result.stdout.strip()
+        parts = []
+        for rel in sorted(self.MANAGED_FILES):
+            fpath = self.base_dir / rel
+            if fpath.exists():
+                content = fpath.read_text(encoding='utf-8')
+                parts.append(f"{rel}:{self._file_hash(content)}")
             else:
-                return False, result.stderr.strip()
-        except subprocess.TimeoutExpired:
-            return False, "Git pull timed out"
+                parts.append(f"{rel}:MISSING")
+        combined = '\n'.join(parts)
+        return hashlib.sha256(combined.encode('utf-8')).hexdigest()
+
+    def read_managed_files(self) -> dict[str, str]:
+        """Read all managed files into a dict of {relative_path: contents}."""
+        files = {}
+        for rel in self.MANAGED_FILES:
+            fpath = self.base_dir / rel
+            if fpath.exists():
+                files[rel] = fpath.read_text(encoding='utf-8')
+            else:
+                logger.warning(f"Managed file not found: {fpath}")
+        return files
+
+    # ------------------------------------------------------------------
+    # Server (publisher)
+    # ------------------------------------------------------------------
+
+    def publish(self) -> tuple[bool, str]:
+        """
+        Publish current managed files to the database.
+
+        Returns:
+            (was_new, version_hash) — was_new is True if a new row was inserted.
+        """
+        version_hash = self.compute_local_hash()
+        files = self.read_managed_files()
+
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT publish_worker_code(%s, %s, %s, %s)",
+                        (version_hash, json.dumps(files), socket.gethostname(), None)
+                    )
+                    was_new = cur.fetchone()[0]
+                    conn.commit()
+            if was_new:
+                logger.info(f"Published version {version_hash[:16]} with {len(files)} files")
+            else:
+                logger.info(f"Version {version_hash[:16]} already published — no change")
+            return was_new, version_hash
         except Exception as e:
-            return False, str(e)
+            logger.error(f"Failed to publish code: {e}")
+            raise
 
-    def check_for_updates(self) -> tuple[bool, str, str]:
+    # ------------------------------------------------------------------
+    # Client (puller)
+    # ------------------------------------------------------------------
+
+    def get_remote_version(self) -> Optional[str]:
+        """Get the latest version hash from the database."""
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT get_latest_worker_version()")
+                    row = cur.fetchone()
+                    return row[0] if row else None
+        except Exception as e:
+            logger.error(f"Failed to get remote version: {e}")
+            return None
+
+    def needs_update(self) -> tuple[bool, str, Optional[str]]:
         """
-        Check if updates are available.
+        Check whether the local files are behind the database version.
 
         Returns:
-            Tuple of (update_available, local_hash, remote_hash)
+            (update_needed, local_hash, remote_hash)
         """
-        # First, fetch to see what's available
+        local_hash = self.compute_local_hash()
+        remote_hash = self.get_remote_version()
+        if remote_hash is None:
+            # No code published yet — nothing to update from
+            return False, local_hash, remote_hash
+        return local_hash != remote_hash, local_hash, remote_hash
+
+    def pull_and_apply(self, version_hash: str) -> bool:
+        """
+        Fetch code from DB and overwrite local files, backing up originals.
+
+        Returns True on success.
+        """
         try:
-            subprocess.run(
-                ['git', 'fetch', '--quiet'],
-                cwd=self.repo_path,
-                capture_output=True,
-                timeout=30
-            )
-        except Exception:
-            pass  # Continue even if fetch fails
-
-        # Check if we're behind
-        try:
-            result = subprocess.run(
-                ['git', 'status', '-uno'],
-                cwd=self.repo_path,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-            behind = 'behind' in result.stdout.lower()
-        except Exception:
-            behind = False
-
-        local_hash = self.get_local_hash()
-        repo_hash = self.get_repo_hash()
-
-        return behind or (local_hash != repo_hash), local_hash, repo_hash
-
-    def update_and_restart(self) -> bool:
-        """
-        Pull updates and restart the worker.
-
-        Returns:
-            True if update was successful (worker will restart)
-        """
-        logger.info("Checking for updates...")
-
-        # Check current state
-        update_available, local_hash, _ = self.check_for_updates()
-
-        if not update_available:
-            logger.info(f"Worker is up to date (hash: {local_hash})")
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT get_worker_code(%s)", (version_hash,))
+                    row = cur.fetchone()
+                    if not row or row[0] is None:
+                        logger.error(f"No code found for version {version_hash[:16]}")
+                        return False
+                    files = row[0]
+                    # psycopg2 may return a string or a dict depending on version
+                    if isinstance(files, str):
+                        files = json.loads(files)
+        except Exception as e:
+            logger.error(f"Failed to fetch code from DB: {e}")
             return False
 
-        logger.info("Update available, pulling latest changes...")
+        # Write each file, backing up the original
+        for rel_path, content in files.items():
+            target = self.base_dir / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
 
-        # Backup current script
-        backup_path = self.worker_script.with_suffix('.py.bak')
-        shutil.copy2(self.worker_script, backup_path)
-        logger.info(f"Backed up current script to {backup_path}")
+            if target.exists():
+                backup = target.with_suffix(target.suffix + '.bak')
+                shutil.copy2(target, backup)
+                logger.info(f"Backed up {rel_path} -> {backup.name}")
 
-        # Pull updates
-        success, message = self.git_pull()
-        if not success:
-            logger.error(f"Failed to pull updates: {message}")
-            # Restore backup
-            shutil.copy2(backup_path, self.worker_script)
-            return False
+            target.write_text(content, encoding='utf-8')
+            logger.info(f"Updated {rel_path}")
 
-        logger.info(f"Git pull: {message}")
+        logger.info(f"Applied version {version_hash[:16]} ({len(files)} files)")
+        return True
 
-        # Verify the new script
-        new_hash = self.get_local_hash()
-        logger.info(f"Updated from {local_hash} to {new_hash}")
-
-        # Restart the worker
+    def restart_worker(self):
+        """Restart the current process with the same arguments."""
         logger.info("Restarting worker with updated code...")
         python = sys.executable
         os.execv(python, [python] + sys.argv)
 
-        # Won't reach here
+    def check_and_apply(self) -> bool:
+        """
+        Full client cycle: check version, pull if behind, restart.
+
+        Returns True if the worker should continue (no update needed).
+        If an update is applied, this method does not return (os.execv).
+        """
+        update_needed, local_hash, remote_hash = self.needs_update()
+        logger.info(f"Local version: {local_hash[:16]}")
+
+        if not update_needed:
+            if remote_hash:
+                logger.info("Worker code is up to date")
+            else:
+                logger.info("No published code in DB — running local version")
+            return True
+
+        logger.info(f"Update available: {local_hash[:16]} -> {remote_hash[:16]}")
+        if self.pull_and_apply(remote_hash):
+            self.restart_worker()
+            # Won't reach here
+        else:
+            logger.warning("Failed to apply update — continuing with current version")
         return True
 
 
@@ -286,37 +330,33 @@ class MachineCapabilities:
         )
 
 
-def check_and_update(skip_update: bool = False) -> bool:
+def check_and_update(db_url: str, is_server: bool, skip_update: bool = False) -> bool:
     """
-    Check for updates and apply them if available.
+    Publish or pull code depending on mode.
 
     Args:
-        skip_update: If True, skip the update check
+        db_url: PostgreSQL connection string
+        is_server: True = publish local code to DB, False = pull from DB
+        skip_update: If True, skip all version checking
 
     Returns:
-        True if worker should continue, False if it restarted
+        True if worker should continue (always, unless os.execv replaces the process)
     """
     if skip_update:
         logger.info("Skipping version check (--no-update)")
         return True
 
     try:
-        updater = AutoUpdater()
-        update_available, local_hash, repo_hash = updater.check_for_updates()
+        updater = DatabaseUpdater(db_url)
 
-        logger.info(f"Local version: {local_hash}")
-
-        if update_available:
-            logger.info(f"Update available (repo: {repo_hash})")
-            updater.update_and_restart()
-            # Won't reach here if restart succeeded
-            return False
+        if is_server:
+            updater.publish()
         else:
-            logger.info("Worker is up to date")
-            return True
+            updater.check_and_apply()
 
+        return True
     except Exception as e:
-        logger.warning(f"Auto-update check failed: {e}")
+        logger.warning(f"Code distribution check failed: {e}")
         logger.info("Continuing with current version...")
         return True
 
@@ -340,7 +380,8 @@ class PooledJobWorker:
         max_concurrent: int = 3,
         batch_size: int = 5,
         poll_interval: float = 2.0,
-        stale_timeout_minutes: int = 30
+        stale_timeout_minutes: int = 30,
+        updater: Optional['DatabaseUpdater'] = None
     ):
         """
         Initialize the worker.
@@ -352,6 +393,7 @@ class PooledJobWorker:
             batch_size: Number of jobs to claim per batch
             poll_interval: Seconds between polling for new jobs
             stale_timeout_minutes: Minutes before a claimed job is considered stale
+            updater: DatabaseUpdater for periodic version checks (client mode only)
         """
         self.db_url = db_url
         self.identity = WorkerIdentity(socket.gethostname(), os.getpid())
@@ -363,6 +405,7 @@ class PooledJobWorker:
         self.handlers: dict[str, Callable[[dict], JobResult]] = {}
         self.shutdown_requested = False
         self.active_jobs = 0
+        self.updater = updater
 
         # Register default handlers
         self.register_handler('general', handle_general_job)
@@ -500,6 +543,10 @@ class PooledJobWorker:
         logger.info(f"Stale timeout: {self.stale_timeout_minutes}min")
 
         stale_check_counter = 0
+        # Check for code updates every ~15 seconds (at 2s poll interval ≈ 7-8 loops)
+        update_check_interval = max(1, int(15 / self.poll_interval))
+        update_check_counter = 0
+        pending_update_hash: Optional[str] = None
 
         while not self.shutdown_requested:
             # Periodic stale check (every ~60 seconds at 2s poll interval)
@@ -507,6 +554,28 @@ class PooledJobWorker:
             if stale_check_counter >= 30:
                 self.reclaim_stale()
                 stale_check_counter = 0
+
+            # Periodic code version check (client mode only)
+            if self.updater:
+                update_check_counter += 1
+                if update_check_counter >= update_check_interval:
+                    update_check_counter = 0
+                    try:
+                        needed, _, remote_hash = self.updater.needs_update()
+                        if needed and remote_hash:
+                            pending_update_hash = remote_hash
+                            logger.info(f"Code update available: {remote_hash[:16]}")
+                    except Exception as e:
+                        logger.debug(f"Version check failed: {e}")
+
+            # If an update is pending and no jobs are active, apply it now
+            if pending_update_hash and self.active_jobs == 0:
+                logger.info("No active jobs — applying code update and restarting")
+                if self.updater.pull_and_apply(pending_update_hash):
+                    self.updater.restart_worker()
+                else:
+                    logger.warning("Failed to apply update — will retry next cycle")
+                    pending_update_hash = None
 
             # Claim and process jobs
             jobs = self.claim_batch()
@@ -531,8 +600,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Auto-detect capabilities and start worker
-  python pooled_job_worker.py
+  # Server mode: publish code to DB and start worker
+  python pooled_job_worker.py --server --job-types general
+
+  # Client mode: pull code from DB and start worker
+  python pooled_job_worker.py --job-types general
 
   # Process specific job types with custom concurrency
   python pooled_job_worker.py --job-types ocr,entity --max-concurrent 5
@@ -540,8 +612,8 @@ Examples:
   # Show machine capabilities and recommended settings
   python pooled_job_worker.py --show-capabilities
 
-  # Check for updates
-  python pooled_job_worker.py --check-update
+  # Skip all version checking
+  python pooled_job_worker.py --no-update --job-types general
 """
     )
     parser.add_argument('--job-types', type=str, help='Comma-separated list of job types to process')
@@ -551,8 +623,9 @@ Examples:
     parser.add_argument('--poll-interval', type=float, default=2.0, help='Poll interval in seconds')
     parser.add_argument('--stale-timeout', type=int, default=30, help='Stale job timeout in minutes')
     parser.add_argument('--db-url', type=str, help='Database URL (or set DATABASE_URL env var)')
-    parser.add_argument('--no-update', action='store_true', help='Skip version check and auto-update')
-    parser.add_argument('--check-update', action='store_true', help='Check for updates and exit')
+    parser.add_argument('--server', action='store_true',
+                        help='Server mode: publish local code to DB on startup')
+    parser.add_argument('--no-update', action='store_true', help='Skip all version checking')
     parser.add_argument('--show-capabilities', action='store_true',
                         help='Show machine capabilities and recommended settings')
     args = parser.parse_args()
@@ -570,33 +643,14 @@ Examples:
             print(f"  {job_type}: {recommended} concurrent jobs")
         sys.exit(0)
 
-    # Handle check-update mode
-    if args.check_update:
-        try:
-            updater = AutoUpdater()
-            update_available, local_hash, repo_hash = updater.check_for_updates()
-            print(f"Local version:  {local_hash}")
-            print(f"Repo version:   {repo_hash}")
-            print(f"Update needed:  {'Yes' if update_available else 'No'}")
-            if update_available:
-                response = input("Apply update? [y/N] ")
-                if response.lower() == 'y':
-                    updater.update_and_restart()
-            sys.exit(0)
-        except Exception as e:
-            print(f"Error checking for updates: {e}")
-            sys.exit(1)
-
-    # Check for updates before starting (unless --no-update)
-    if not check_and_update(skip_update=args.no_update):
-        # Worker restarted, exit this instance
-        sys.exit(0)
-
-    # Get database URL
+    # Get database URL (needed before update check)
     db_url = args.db_url or os.environ.get('DATABASE_URL')
     if not db_url:
         # Default for Epstein project - BobbyHomeEP via Tailscale
         db_url = "host=100.75.137.22 dbname=epstein_documents user=epstein_user password=epstein_secure_pw_2024"
+
+    # Publish or pull code on startup (unless --no-update)
+    check_and_update(db_url, is_server=args.server, skip_update=args.no_update)
 
     # Parse job types
     job_types = None
@@ -616,6 +670,11 @@ Examples:
     logger.info(f"CPUs: {capabilities.cpu_count} logical, {capabilities.cpu_count_physical} physical")
     logger.info(f"Memory: {capabilities.memory_total_gb:.1f}GB total, {capabilities.memory_available_gb:.1f}GB available")
 
+    # Set up periodic updater for client mode
+    updater = None
+    if not args.server and not args.no_update:
+        updater = DatabaseUpdater(db_url)
+
     # Create worker
     worker = PooledJobWorker(
         db_url=db_url,
@@ -623,7 +682,8 @@ Examples:
         max_concurrent=max_concurrent,
         batch_size=args.batch_size,
         poll_interval=args.poll_interval,
-        stale_timeout_minutes=args.stale_timeout
+        stale_timeout_minutes=args.stale_timeout,
+        updater=updater
     )
 
     # Handle signals for graceful shutdown
