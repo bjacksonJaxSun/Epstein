@@ -14,7 +14,7 @@
     Name for this worker (appears in logs and results)
 
 .PARAMETER InstallPath
-    Installation directory (default: C:\RemoteWorker)
+    Installation directory (default: C:\ProgramData\RemoteWorker)
 
 .PARAMETER ShareName
     Network share name (default: RemoteWorker)
@@ -25,7 +25,7 @@
 
 param(
     [string]$WorkerName = "Worker-01",
-    [string]$InstallPath = "C:\RemoteWorker",
+    [string]$InstallPath = "C:\ProgramData\RemoteWorker",
     [string]$ShareName = "RemoteWorker"
 )
 
@@ -179,6 +179,38 @@ function Invoke-CommandJob {
                     $bytes = [IO.File]::ReadAllBytes($CommandData.source)
                     $result.output = [Convert]::ToBase64String($bytes)
                 }
+                $result.exitCode = 0
+            }
+            "service-update" {
+                $scriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+                $backupPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1.bak"
+                # Backup current script
+                if (Test-Path $scriptPath) { Copy-Item -Path $scriptPath -Destination $backupPath -Force }
+                # Write new script
+                $newContent = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($CommandData.content))
+                Set-Content -Path $scriptPath -Value $newContent -Encoding UTF8
+                $result.output = "Service script updated. Scheduling restart..."
+                $result.exitCode = 0
+                # Schedule restart in 3 seconds (allows result to be written first)
+                $restartScript = "Start-Sleep -Seconds 3; Stop-ScheduledTask -TaskName 'RemoteWorkerService'; Start-Sleep -Seconds 2; Start-ScheduledTask -TaskName 'RemoteWorkerService'"
+                Start-Process powershell -ArgumentList "-WindowStyle Hidden -Command `"$restartScript`"" -WindowStyle Hidden
+            }
+            "service-rollback" {
+                $scriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+                $backupPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1.bak"
+                if (-not (Test-Path $backupPath)) { throw "No backup found to rollback" }
+                Copy-Item -Path $backupPath -Destination $scriptPath -Force
+                $result.output = "Service rolled back to previous version. Scheduling restart..."
+                $result.exitCode = 0
+                $restartScript = "Start-Sleep -Seconds 3; Stop-ScheduledTask -TaskName 'RemoteWorkerService'; Start-Sleep -Seconds 2; Start-ScheduledTask -TaskName 'RemoteWorkerService'"
+                Start-Process powershell -ArgumentList "-WindowStyle Hidden -Command `"$restartScript`"" -WindowStyle Hidden
+            }
+            "service-version" {
+                $scriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+                $scriptContent = Get-Content $scriptPath -Raw
+                $hash = [System.BitConverter]::ToString((New-Object System.Security.Cryptography.SHA256Managed).ComputeHash([Text.Encoding]::UTF8.GetBytes($scriptContent))).Replace("-","").Substring(0,16)
+                $lastWrite = (Get-Item $scriptPath).LastWriteTime.ToString("o")
+                $result.output = @{ scriptHash = $hash; lastModified = $lastWrite; workerName = $script:Config.workerName } | ConvertTo-Json
                 $result.exitCode = 0
             }
             default { throw "Unknown action: $($CommandData.action)" }

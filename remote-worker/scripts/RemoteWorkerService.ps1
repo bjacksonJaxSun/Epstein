@@ -265,6 +265,71 @@ function Invoke-CommandJob {
                 $result.exitCode = 0
             }
 
+            "service-update" {
+                # Update the service script itself
+                $scriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+                $backupPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1.bak"
+
+                # Backup current script
+                if (Test-Path $scriptPath) {
+                    Copy-Item -Path $scriptPath -Destination $backupPath -Force
+                    Write-Log "Backed up current script to $backupPath"
+                }
+
+                # Write new script from base64 content
+                $newContent = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($CommandData.content))
+                Set-Content -Path $scriptPath -Value $newContent -Encoding UTF8
+                Write-Log "Updated service script"
+
+                $result.output = "Service script updated. Scheduling restart..."
+                $result.exitCode = 0
+
+                # Schedule restart in 3 seconds (allows result to be written first)
+                $restartScript = "Start-Sleep -Seconds 3; Stop-ScheduledTask -TaskName 'RemoteWorkerService'; Start-Sleep -Seconds 2; Start-ScheduledTask -TaskName 'RemoteWorkerService'"
+                Start-Process powershell -ArgumentList "-WindowStyle Hidden -Command `"$restartScript`"" -WindowStyle Hidden
+            }
+
+            "service-rollback" {
+                # Rollback to previous version
+                $scriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+                $backupPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1.bak"
+
+                if (-not (Test-Path $backupPath)) {
+                    throw "No backup found to rollback"
+                }
+
+                Copy-Item -Path $backupPath -Destination $scriptPath -Force
+                Write-Log "Rolled back to previous version"
+
+                $result.output = "Service rolled back to previous version. Scheduling restart..."
+                $result.exitCode = 0
+
+                # Schedule restart
+                $restartScript = "Start-Sleep -Seconds 3; Stop-ScheduledTask -TaskName 'RemoteWorkerService'; Start-Sleep -Seconds 2; Start-ScheduledTask -TaskName 'RemoteWorkerService'"
+                Start-Process powershell -ArgumentList "-WindowStyle Hidden -Command `"$restartScript`"" -WindowStyle Hidden
+            }
+
+            "service-version" {
+                # Return version info for the service script
+                $scriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+                $scriptContent = Get-Content $scriptPath -Raw
+                $hash = [System.BitConverter]::ToString(
+                    (New-Object System.Security.Cryptography.SHA256Managed).ComputeHash(
+                        [Text.Encoding]::UTF8.GetBytes($scriptContent)
+                    )
+                ).Replace("-","").Substring(0,16)
+                $lastWrite = (Get-Item $scriptPath).LastWriteTime.ToString("o")
+
+                $versionInfo = [PSCustomObject]@{
+                    scriptHash = $hash
+                    lastModified = $lastWrite
+                    workerName = $script:Config.workerName
+                }
+
+                $result.output = $versionInfo | ConvertTo-Json
+                $result.exitCode = 0
+            }
+
             default {
                 throw "Unknown action: $($CommandData.action)"
             }
@@ -290,7 +355,7 @@ function Invoke-CommandJob {
 
     # Move command file to completed/failed folder
     $destFolder = if ($result.status -eq "completed") { "completed" } else { "failed" }
-    $destPath = Join-Path $script:Config.watchFolder $destFolder (Split-Path $CommandFile -Leaf)
+    $destPath = Join-Path (Join-Path $script:Config.watchFolder $destFolder) (Split-Path $CommandFile -Leaf)
     Move-Item -Path $CommandFile -Destination $destPath -Force -ErrorAction SilentlyContinue
 
     return $result
@@ -313,7 +378,7 @@ function Process-CommandFile {
         Write-Log "Processing command file: $(Split-Path $FilePath -Leaf) (Job: $($command.id))"
 
         # Move to processing folder
-        $processingPath = Join-Path $script:Config.watchFolder "processing" (Split-Path $FilePath -Leaf)
+        $processingPath = Join-Path (Join-Path $script:Config.watchFolder "processing") (Split-Path $FilePath -Leaf)
         Move-Item -Path $FilePath -Destination $processingPath -Force
 
         # Execute the command

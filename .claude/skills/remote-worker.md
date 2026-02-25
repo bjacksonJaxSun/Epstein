@@ -96,13 +96,40 @@ Invoke-RemotePowerShell "Get-Process python, dotnet -ErrorAction SilentlyContinu
 
 ### View Remote Logs
 ```powershell
-Invoke-RemotePowerShell "Get-Content 'C:\RemoteWorker\logs\worker-$(Get-Date -Format yyyy-MM-dd).log' -Tail 20"
+Invoke-RemotePowerShell "Get-Content 'C:\ProgramData\RemoteWorker\logs\worker-$(Get-Date -Format yyyy-MM-dd).log' -Tail 20"
 ```
 
 ### Kill Stuck Process
 ```powershell
 Stop-RemoteProcess -ProcessName "python"
 ```
+
+## Service Management (Remote Updates)
+
+### Get Service Version
+```powershell
+Get-RemoteWorkerVersion
+# Returns: scriptHash, lastModified, workerName
+```
+
+### Push Service Update
+```powershell
+# Update remote worker with local script
+Update-RemoteWorkerService
+
+# Or specify a specific script file
+Update-RemoteWorkerService -ScriptPath "D:\scripts\RemoteWorkerService.ps1"
+```
+
+### Rollback to Previous Version
+```powershell
+Undo-RemoteWorkerUpdate
+```
+
+The service automatically:
+- Backs up the current script before updating
+- Restarts itself after the update
+- Allows rollback to the previous version
 
 ## Troubleshooting
 

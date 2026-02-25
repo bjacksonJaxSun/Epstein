@@ -27,7 +27,7 @@ A lightweight workload distribution system using Tailscale and shared folders. E
 ```
 
 This automatically:
-- Creates `C:\RemoteWorker` with all directories
+- Creates `C:\ProgramData\RemoteWorker` with all directories
 - Installs the watcher service
 - Creates a network share accessible via Tailscale
 - Starts the service
@@ -85,6 +85,9 @@ Commands are JSON files dropped into the commands folder:
 | `process-stop` | Stop process | (use processName/processId) |
 | `status` | Get worker stats | CPU, memory, uptime |
 | `file-transfer` | Upload/download files | Base64 encoded |
+| `service-update` | Update service script | Push new version |
+| `service-rollback` | Rollback to previous | Restore backup |
+| `service-version` | Get script version | Hash & timestamp |
 
 ### Process Start Example
 
@@ -137,11 +140,14 @@ Results appear in the results folder as `{job-id}.json`:
 | `Get-RemoteStatus` | Get CPU/memory/uptime |
 | `Send-FileToWorker` | Upload a file |
 | `Get-FileFromWorker` | Download a file |
+| `Update-RemoteWorkerService` | Push new service script |
+| `Get-RemoteWorkerVersion` | Get service version info |
+| `Undo-RemoteWorkerUpdate` | Rollback to previous version |
 | `Send-RemoteCommand` | Low-level command sender |
 
 ## Configuration
 
-Edit `C:\RemoteWorker\config.json` on the worker:
+Edit `C:\ProgramData\RemoteWorker\config.json` on the worker:
 
 ```json
 {
@@ -178,7 +184,7 @@ Stop-ScheduledTask -TaskName "RemoteWorkerService"
 Start-ScheduledTask -TaskName "RemoteWorkerService"
 
 # View logs
-Get-Content "C:\RemoteWorker\logs\worker-*.log" -Tail 50
+Get-Content "C:\ProgramData\RemoteWorker\logs\worker-*.log" -Tail 50
 
 # Uninstall
 Unregister-ScheduledTask -TaskName "RemoteWorkerService" -Confirm:$false
@@ -205,7 +211,7 @@ From control machine, access via Tailscale IP:
 ### Commands not executing
 
 1. Check service is running: `Get-ScheduledTask -TaskName "RemoteWorkerService"`
-2. View logs: `Get-Content C:\RemoteWorker\logs\worker-*.log -Tail 20`
+2. View logs: `Get-Content C:\ProgramData\RemoteWorker\logs\worker-*.log -Tail 20`
 3. Check for files in `commands\processing` (stuck jobs)
 
 ### Permission denied

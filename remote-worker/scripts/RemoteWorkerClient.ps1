@@ -406,6 +406,123 @@ function Get-FileFromWorker {
     }
 }
 
+# Service Management Functions
+
+function Update-RemoteWorkerService {
+    <#
+    .SYNOPSIS
+        Updates the Remote Worker service script on a remote worker.
+
+    .DESCRIPTION
+        Pushes a new version of RemoteWorkerService.ps1 to the remote worker.
+        The worker will backup the current script and restart automatically.
+
+    .PARAMETER ScriptPath
+        Path to the new service script (default: same directory as client)
+
+    .PARAMETER Worker
+        Target worker name
+
+    .EXAMPLE
+        Update-RemoteWorkerService
+
+    .EXAMPLE
+        Update-RemoteWorkerService -ScriptPath "C:\scripts\RemoteWorkerService.ps1" -Worker "bobbyhomeep"
+    #>
+
+    param(
+        [string]$ScriptPath,
+
+        [string]$Worker
+    )
+
+    # Default to the service script in the same directory as this client
+    if (-not $ScriptPath) {
+        $ScriptPath = Join-Path $PSScriptRoot "RemoteWorkerService.ps1"
+    }
+
+    if (-not (Test-Path $ScriptPath)) {
+        throw "Service script not found: $ScriptPath"
+    }
+
+    Write-Host "Reading service script from: $ScriptPath" -ForegroundColor Cyan
+    $scriptContent = Get-Content $ScriptPath -Raw
+    $base64Content = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($scriptContent))
+
+    Write-Host "Pushing update to remote worker..." -ForegroundColor Yellow
+
+    $extraParams = @{
+        content = $base64Content
+    }
+
+    $result = Send-RemoteCommand -Action "service-update" -Command "" -Worker $Worker -ExtraParams $extraParams -Timeout 60
+
+    if ($result.status -eq "completed") {
+        Write-Host "Update successful! Worker will restart in a few seconds." -ForegroundColor Green
+        Write-Host "Use Get-RemoteWorkerVersion to verify the update after ~10 seconds." -ForegroundColor Gray
+    } else {
+        Write-Host "Update failed: $($result.error)" -ForegroundColor Red
+    }
+
+    return $result
+}
+
+function Get-RemoteWorkerVersion {
+    <#
+    .SYNOPSIS
+        Gets the current version information of the remote worker service.
+
+    .DESCRIPTION
+        Returns the script hash and last modified time of the service script.
+
+    .EXAMPLE
+        Get-RemoteWorkerVersion
+
+    .EXAMPLE
+        Get-RemoteWorkerVersion -Worker "bobbyhomeep"
+    #>
+
+    param([string]$Worker)
+
+    $result = Send-RemoteCommand -Action "service-version" -Command "" -Worker $Worker
+
+    if ($result.status -eq "completed" -and $result.output) {
+        return $result.output | ConvertFrom-Json
+    }
+
+    return $result
+}
+
+function Undo-RemoteWorkerUpdate {
+    <#
+    .SYNOPSIS
+        Rolls back the remote worker service to the previous version.
+
+    .DESCRIPTION
+        Restores the backup script created during the last update and restarts the service.
+
+    .EXAMPLE
+        Undo-RemoteWorkerUpdate
+
+    .EXAMPLE
+        Undo-RemoteWorkerUpdate -Worker "bobbyhomeep"
+    #>
+
+    param([string]$Worker)
+
+    Write-Host "Rolling back to previous version..." -ForegroundColor Yellow
+
+    $result = Send-RemoteCommand -Action "service-rollback" -Command "" -Worker $Worker -Timeout 60
+
+    if ($result.status -eq "completed") {
+        Write-Host "Rollback successful! Worker will restart in a few seconds." -ForegroundColor Green
+    } else {
+        Write-Host "Rollback failed: $($result.error)" -ForegroundColor Red
+    }
+
+    return $result
+}
+
 function Show-RemoteWorkerHelp {
     Write-Host @"
 
@@ -426,6 +543,11 @@ FILE TRANSFER:
   Send-FileToWorker -LocalPath X -RemotePath Y    Upload file
   Get-FileFromWorker -RemotePath X -LocalPath Y   Download file
 
+SERVICE MANAGEMENT:
+  Update-RemoteWorkerService           Push new service script to worker
+  Get-RemoteWorkerVersion              Get service script hash and version
+  Undo-RemoteWorkerUpdate              Rollback to previous version
+
 LOW-LEVEL:
   Send-RemoteCommand -Action X -Command Y   Send any command
   Wait-RemoteResult -JobId X                Wait for job result
@@ -435,6 +557,7 @@ EXAMPLES:
   Invoke-RemotePowerShell "Get-Process | Select -First 5"
   Start-RemoteProcess "python.exe" -Arguments "C:\script.py"
   Get-RemoteStatus | Format-List
+  Update-RemoteWorkerService -ScriptPath ".\RemoteWorkerService.ps1"
 
 "@ -ForegroundColor Cyan
 }
@@ -451,5 +574,8 @@ Export-ModuleMember -Function @(
     'Get-RemoteStatus',
     'Send-FileToWorker',
     'Get-FileFromWorker',
+    'Update-RemoteWorkerService',
+    'Get-RemoteWorkerVersion',
+    'Undo-RemoteWorkerUpdate',
     'Show-RemoteWorkerHelp'
 )

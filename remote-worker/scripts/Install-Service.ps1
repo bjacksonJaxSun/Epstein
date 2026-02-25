@@ -16,7 +16,7 @@
     Remove the service instead of installing
 
 .PARAMETER InstallPath
-    Where to install the service files (default: C:\RemoteWorker)
+    Where to install the service files (default: C:\ProgramData\RemoteWorker)
 
 .EXAMPLE
     .\Install-Service.ps1
@@ -30,7 +30,7 @@ param(
 
     [switch]$Uninstall,
 
-    [string]$InstallPath = "C:\RemoteWorker",
+    [string]$InstallPath = "C:\ProgramData\RemoteWorker",
 
     [string]$WorkerName = "Worker-01"
 )
