@@ -22,6 +22,11 @@ if (-not $script:RemoteWorkerConfig) {
                 CommandsPath = "\\100.75.137.22\RemoteWorker\commands"
                 ResultsPath = "\\100.75.137.22\RemoteWorker\results"
             }
+            "2307" = @{
+                TailscaleIP = "100.99.204.98"
+                CommandsPath = "\\100.99.204.98\RemoteWorker\commands"
+                ResultsPath = "\\100.99.204.98\RemoteWorker\results"
+            }
         }
         DefaultWorker = "bobbyhomeep"
         ResultTimeoutSeconds = 300
@@ -586,30 +591,25 @@ function Invoke-PoolQuery {
     $psql = Get-PsqlPath
     $env:PGPASSWORD = $script:JobPoolConfig.Password
 
-    $args = @(
+    $psqlArgs = @(
         "-h", $script:JobPoolConfig.Host,
         "-U", $script:JobPoolConfig.Username,
         "-d", $script:JobPoolConfig.Database,
         "-t", "-A"  # Tuples only, unaligned output
     )
 
-    if (-not $NoOutput) {
-        $args += "-c", $Query
-    }
-
     try {
-        if ($NoOutput) {
-            $result = $Query | & $psql @args 2>&1
-        } else {
-            $result = & $psql @args 2>&1
-        }
+        # Always pipe query via stdin to avoid argument escaping issues with JSON
+        $result = $Query | & $psql @psqlArgs 2>&1
 
         if ($LASTEXITCODE -ne 0) {
             throw "Query failed: $result"
         }
 
         if ($Scalar) {
-            return ($result | Select-Object -First 1).Trim()
+            $first = $result | Select-Object -First 1
+            if ($first) { return "$first".Trim() }
+            return $null
         }
 
         return $result
@@ -683,7 +683,7 @@ function Submit-PooledJob {
         [int]$TimeoutSeconds = 300
     )
 
-    $payloadJson = ($Payload | ConvertTo-Json -Compress -Depth 10) -replace "'", "''"
+    $payloadJson = ($Payload | ConvertTo-Json -Compress -Depth 10) -replace "'", "''" -replace '\\u0027', "''"
 
     $query = "SELECT submit_job('$JobType', '$payloadJson'::jsonb, $Priority, $TimeoutSeconds, '$env:COMPUTERNAME')"
 

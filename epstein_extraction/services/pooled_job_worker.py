@@ -31,6 +31,7 @@ import argparse
 import hashlib
 import shutil
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable, Optional
 import json
 import logging
@@ -42,7 +43,7 @@ from psycopg2.extras import RealDictCursor
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from services.job_handlers import handle_general_job, JobResult
+from services.job_handlers import handle_general_job, handle_extraction_job, JobResult
 
 logging.basicConfig(
     level=logging.INFO,
@@ -76,6 +77,8 @@ class DatabaseUpdater:
         'services/pooled_job_worker.py',
         'services/job_handlers/__init__.py',
         'services/job_handlers/general_handler.py',
+        'services/job_handlers/extraction_handler.py',
+        'start_extraction_workers.py',
     ]
 
     def __init__(self, db_url: str, base_dir: Optional[Path] = None):
@@ -406,9 +409,18 @@ class PooledJobWorker:
         self.shutdown_requested = False
         self.active_jobs = 0
         self.updater = updater
+        self.started_at = datetime.now(timezone.utc)
+
+        # Compute code version once at startup
+        try:
+            version_updater = updater or DatabaseUpdater(db_url)
+            self.code_version = version_updater.compute_local_hash()
+        except Exception:
+            self.code_version = None
 
         # Register default handlers
         self.register_handler('general', handle_general_job)
+        self.register_handler('extract_text', handle_extraction_job)
 
     def register_handler(self, job_type: str, handler: Callable[[dict], JobResult]):
         """Register a handler function for a job type."""
@@ -498,6 +510,70 @@ class PooledJobWorker:
         except Exception as e:
             logger.error(f"Failed to reclaim stale jobs: {e}")
 
+    def send_heartbeat(self, status: str = None):
+        """Send a heartbeat and check for pending commands. Never raises."""
+        if status is None:
+            status = 'busy' if self.active_jobs > 0 else 'idle'
+        try:
+            with self._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT upsert_worker_heartbeat(%s, %s, %s, %s, %s, %s, %s)",
+                        (
+                            self.identity.worker_id,
+                            self.identity.machine_name,
+                            self.code_version,
+                            self.job_types,
+                            status,
+                            self.active_jobs,
+                            self.started_at,
+                        )
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+
+                    # Check for pending command (returned by upsert after migration)
+                    command = row[0] if row else None
+                    if command:
+                        self._handle_command(command)
+        except Exception as e:
+            logger.debug(f"Heartbeat failed: {e}")
+
+    def _handle_command(self, command: str):
+        """Handle a remote command received via heartbeat."""
+        logger.info(f"Received remote command: {command}")
+        if command == 'shutdown':
+            self.shutdown()
+        elif command == 'kill_children':
+            self._kill_children()
+        elif command == 'restart':
+            self._kill_children()
+            self.shutdown()
+        else:
+            logger.warning(f"Unknown command: {command}")
+
+    def _kill_children(self):
+        """Kill all child processes of this worker."""
+        try:
+            import psutil
+            parent = psutil.Process(os.getpid())
+            children = parent.children(recursive=True)
+            for child in children:
+                logger.info(f"Killing child process {child.pid} ({child.name()})")
+                child.kill()
+            psutil.wait_procs(children, timeout=5)
+        except ImportError:
+            # Fallback without psutil — kill by platform
+            import subprocess as sp
+            if sys.platform == 'win32':
+                sp.run(['taskkill', '/F', '/T', '/PID', str(os.getpid())],
+                       capture_output=True)
+            else:
+                import signal as sig
+                os.killpg(os.getpgid(os.getpid()), sig.SIGTERM)
+        except Exception as e:
+            logger.error(f"Failed to kill children: {e}")
+
     async def process_job(self, job: dict):
         """Process a single job."""
         job_id = job['job_id']
@@ -508,6 +584,9 @@ class PooledJobWorker:
         try:
             self.start_job(job_id)
             logger.info(f"Processing job {job_id} ({job_type})")
+
+            # Inject db_url so handlers can access the database directly
+            payload['db_url'] = self.db_url
 
             # Find handler
             handler = self.handlers.get(job_type)
@@ -534,7 +613,7 @@ class PooledJobWorker:
             self.active_jobs -= 1
 
     async def run(self):
-        """Main worker loop."""
+        """Main worker loop. Never blocks on individual jobs."""
         logger.info(f"Worker {self.identity.worker_id} starting")
         logger.info(f"Job types: {self.job_types or 'all'}")
         logger.info(f"Max concurrent: {self.max_concurrent}")
@@ -549,6 +628,9 @@ class PooledJobWorker:
         pending_update_hash: Optional[str] = None
 
         while not self.shutdown_requested:
+            # Send heartbeat every iteration (also checks for remote commands)
+            self.send_heartbeat()
+
             # Periodic stale check (every ~60 seconds at 2s poll interval)
             stale_check_counter += 1
             if stale_check_counter >= 30:
@@ -577,15 +659,17 @@ class PooledJobWorker:
                     logger.warning("Failed to apply update — will retry next cycle")
                     pending_update_hash = None
 
-            # Claim and process jobs
+            # Claim and process jobs — fire-and-forget so the loop never blocks
             jobs = self.claim_batch()
             if jobs:
-                # Process all claimed jobs concurrently
-                await asyncio.gather(*[self.process_job(j) for j in jobs])
-            else:
-                # No jobs available, wait before polling again
-                await asyncio.sleep(self.poll_interval)
+                for job in jobs:
+                    asyncio.create_task(self.process_job(job))
 
+            # Always sleep between iterations — keeps heartbeat + commands responsive
+            await asyncio.sleep(self.poll_interval)
+
+        # Best-effort final heartbeat with shutting_down status
+        self.send_heartbeat(status='shutting_down')
         logger.info("Worker shutting down")
 
     def shutdown(self):
