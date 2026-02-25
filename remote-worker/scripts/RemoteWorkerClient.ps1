@@ -524,16 +524,403 @@ function Undo-RemoteWorkerUpdate {
     return $result
 }
 
+# ============================================
+# POOLED JOB FUNCTIONS (Database-based)
+# Multi-machine job pool using PostgreSQL
+# ============================================
+
+# Job Pool Configuration
+if (-not $script:JobPoolConfig) {
+    $script:JobPoolConfig = @{
+        Host = "100.75.137.22"  # BobbyHomeEP via Tailscale
+        Database = "epstein_documents"
+        Username = "epstein_user"
+        Password = "epstein_secure_pw_2024"
+        PsqlPath = $null  # Auto-detect or set manually
+    }
+}
+
+function Get-PsqlPath {
+    <#
+    .SYNOPSIS
+        Finds the psql executable path.
+    #>
+
+    if ($script:JobPoolConfig.PsqlPath -and (Test-Path $script:JobPoolConfig.PsqlPath)) {
+        return $script:JobPoolConfig.PsqlPath
+    }
+
+    # Try common locations
+    $possiblePaths = @(
+        "C:\Program Files\PostgreSQL\16\bin\psql.exe",
+        "C:\Program Files\PostgreSQL\15\bin\psql.exe",
+        "C:\Program Files\PostgreSQL\14\bin\psql.exe",
+        "C:\Program Files\PostgreSQL\13\bin\psql.exe",
+        (Get-Command psql -ErrorAction SilentlyContinue).Source
+    )
+
+    foreach ($path in $possiblePaths) {
+        if ($path -and (Test-Path $path)) {
+            $script:JobPoolConfig.PsqlPath = $path
+            return $path
+        }
+    }
+
+    throw "psql not found. Install PostgreSQL client tools or set `$script:JobPoolConfig.PsqlPath"
+}
+
+function Invoke-PoolQuery {
+    <#
+    .SYNOPSIS
+        Executes a query against the job pool database.
+    #>
+
+    param(
+        [Parameter(Mandatory)]
+        [string]$Query,
+
+        [switch]$Scalar,
+        [switch]$NoOutput
+    )
+
+    $psql = Get-PsqlPath
+    $env:PGPASSWORD = $script:JobPoolConfig.Password
+
+    $args = @(
+        "-h", $script:JobPoolConfig.Host,
+        "-U", $script:JobPoolConfig.Username,
+        "-d", $script:JobPoolConfig.Database,
+        "-t", "-A"  # Tuples only, unaligned output
+    )
+
+    if (-not $NoOutput) {
+        $args += "-c", $Query
+    }
+
+    try {
+        if ($NoOutput) {
+            $result = $Query | & $psql @args 2>&1
+        } else {
+            $result = & $psql @args 2>&1
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Query failed: $result"
+        }
+
+        if ($Scalar) {
+            return ($result | Select-Object -First 1).Trim()
+        }
+
+        return $result
+    } finally {
+        Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
+    }
+}
+
+function Test-JobPoolConnection {
+    <#
+    .SYNOPSIS
+        Tests the connection to the job pool database.
+
+    .EXAMPLE
+        Test-JobPoolConnection
+    #>
+
+    try {
+        $result = Invoke-PoolQuery -Query "SELECT 1" -Scalar
+        if ($result -eq "1") {
+            Write-Host "Job pool connection successful!" -ForegroundColor Green
+            return $true
+        }
+    } catch {
+        Write-Host "Job pool connection failed: $_" -ForegroundColor Red
+        return $false
+    }
+    return $false
+}
+
+function Submit-PooledJob {
+    <#
+    .SYNOPSIS
+        Submits a job to the database-based job pool.
+
+    .DESCRIPTION
+        Jobs are placed in a shared queue that any worker can claim.
+        This enables multi-machine job distribution.
+
+    .PARAMETER JobType
+        Type of job: 'general', 'ocr', 'entity', 'vision', etc.
+
+    .PARAMETER Payload
+        Job payload as a hashtable. For 'general' jobs, include:
+        - action: 'powershell', 'python', 'shell', or 'executable'
+        - command: The command to run (for powershell/shell)
+        - script: The script path (for python)
+        - args: Optional arguments array
+
+    .PARAMETER Priority
+        Job priority (higher = more urgent). Default: 0
+
+    .PARAMETER TimeoutSeconds
+        Job timeout in seconds. Default: 300
+
+    .EXAMPLE
+        Submit-PooledJob -JobType "general" -Payload @{action="powershell"; command="Get-Process"}
+
+    .EXAMPLE
+        Submit-PooledJob -JobType "ocr" -Payload @{document_id=123; page=1} -Priority 10
+    #>
+
+    param(
+        [Parameter(Mandatory)]
+        [string]$JobType,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Payload,
+
+        [int]$Priority = 0,
+        [int]$TimeoutSeconds = 300
+    )
+
+    $payloadJson = ($Payload | ConvertTo-Json -Compress -Depth 10) -replace "'", "''"
+
+    $query = "SELECT submit_job('$JobType', '$payloadJson'::jsonb, $Priority, $TimeoutSeconds, '$env:COMPUTERNAME')"
+
+    try {
+        $jobId = Invoke-PoolQuery -Query $query -Scalar
+        Write-Host "Submitted job $jobId ($JobType)" -ForegroundColor Cyan
+        return [int]$jobId
+    } catch {
+        Write-Host "Failed to submit job: $_" -ForegroundColor Red
+        throw
+    }
+}
+
+function Get-PooledJobStatus {
+    <#
+    .SYNOPSIS
+        Gets the status of a pooled job.
+
+    .EXAMPLE
+        Get-PooledJobStatus -JobId 123
+    #>
+
+    param(
+        [Parameter(Mandatory)]
+        [int]$JobId
+    )
+
+    $query = @"
+SELECT row_to_json(t) FROM (
+    SELECT job_id, job_type, status, exit_code, error_message,
+           result::text, LEFT(output_text, 2000) as output_preview,
+           created_at, started_at, completed_at, claimed_by, retry_count
+    FROM job_pool WHERE job_id = $JobId
+) t
+"@
+
+    $result = Invoke-PoolQuery -Query $query -Scalar
+
+    if ($result) {
+        return $result | ConvertFrom-Json
+    }
+
+    return $null
+}
+
+function Wait-PooledJob {
+    <#
+    .SYNOPSIS
+        Waits for a pooled job to complete.
+
+    .EXAMPLE
+        $result = Wait-PooledJob -JobId 123
+
+    .EXAMPLE
+        $result = Wait-PooledJob -JobId 123 -TimeoutSeconds 600
+    #>
+
+    param(
+        [Parameter(Mandatory)]
+        [int]$JobId,
+
+        [int]$TimeoutSeconds = 3600,
+        [int]$PollIntervalMs = 2000
+    )
+
+    $start = Get-Date
+    Write-Host "Waiting for job $JobId..." -ForegroundColor Gray -NoNewline
+
+    while ((Get-Date) -lt $start.AddSeconds($TimeoutSeconds)) {
+        $status = Get-PooledJobStatus -JobId $JobId
+
+        if ($status.status -in @('completed', 'failed', 'skipped')) {
+            Write-Host " Done!" -ForegroundColor Green
+            return $status
+        }
+
+        Write-Host "." -NoNewline -ForegroundColor Gray
+        Start-Sleep -Milliseconds $PollIntervalMs
+    }
+
+    Write-Host " Timeout!" -ForegroundColor Red
+    throw "Timeout waiting for job $JobId"
+}
+
+function Get-JobPoolProgress {
+    <#
+    .SYNOPSIS
+        Gets the progress of all jobs in the pool.
+
+    .EXAMPLE
+        Get-JobPoolProgress
+    #>
+
+    $query = "SELECT row_to_json(t) FROM job_pool_progress t"
+
+    $results = Invoke-PoolQuery -Query $query
+
+    $progress = @()
+    foreach ($row in $results) {
+        if ($row.Trim()) {
+            $progress += ($row | ConvertFrom-Json)
+        }
+    }
+
+    return $progress
+}
+
+function Get-ActivePoolWorkers {
+    <#
+    .SYNOPSIS
+        Gets information about active workers in the pool.
+
+    .EXAMPLE
+        Get-ActivePoolWorkers
+    #>
+
+    $query = "SELECT row_to_json(t) FROM active_pool_workers t"
+
+    $results = Invoke-PoolQuery -Query $query
+
+    $workers = @()
+    foreach ($row in $results) {
+        if ($row.Trim()) {
+            $workers += ($row | ConvertFrom-Json)
+        }
+    }
+
+    return $workers
+}
+
+function Get-RecentPoolErrors {
+    <#
+    .SYNOPSIS
+        Gets recent errors from the job pool.
+
+    .PARAMETER Limit
+        Maximum number of errors to return. Default: 20
+
+    .EXAMPLE
+        Get-RecentPoolErrors
+    #>
+
+    param([int]$Limit = 20)
+
+    $query = "SELECT row_to_json(t) FROM (SELECT * FROM recent_pool_errors LIMIT $Limit) t"
+
+    $results = Invoke-PoolQuery -Query $query
+
+    $errors = @()
+    foreach ($row in $results) {
+        if ($row.Trim()) {
+            $errors += ($row | ConvertFrom-Json)
+        }
+    }
+
+    return $errors
+}
+
+function Reset-FailedPoolJobs {
+    <#
+    .SYNOPSIS
+        Resets failed jobs to pending for retry.
+
+    .PARAMETER JobType
+        Optional job type filter
+
+    .EXAMPLE
+        Reset-FailedPoolJobs
+
+    .EXAMPLE
+        Reset-FailedPoolJobs -JobType "ocr"
+    #>
+
+    param([string]$JobType)
+
+    $typeParam = if ($JobType) { "'$JobType'" } else { "NULL" }
+    $query = "SELECT reset_failed_jobs($typeParam)"
+
+    $count = Invoke-PoolQuery -Query $query -Scalar
+    Write-Host "Reset $count failed jobs to pending" -ForegroundColor Green
+    return [int]$count
+}
+
+function Invoke-PooledPowerShell {
+    <#
+    .SYNOPSIS
+        Submits a PowerShell command to the job pool and waits for result.
+
+    .DESCRIPTION
+        Convenience function that submits a general job with a PowerShell action
+        and waits for the result.
+
+    .EXAMPLE
+        Invoke-PooledPowerShell "Get-Process | Select -First 5"
+
+    .EXAMPLE
+        Invoke-PooledPowerShell "Get-ChildItem C:\Temp" -Priority 10 -TimeoutSeconds 120
+    #>
+
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [string]$Command,
+
+        [int]$Priority = 0,
+        [int]$TimeoutSeconds = 300
+    )
+
+    $jobId = Submit-PooledJob -JobType "general" -Payload @{
+        action = "powershell"
+        command = $Command
+        timeout = $TimeoutSeconds
+    } -Priority $Priority -TimeoutSeconds $TimeoutSeconds
+
+    return Wait-PooledJob -JobId $jobId -TimeoutSeconds ($TimeoutSeconds + 60)
+}
+
 function Show-RemoteWorkerHelp {
     Write-Host @"
 
 Remote Worker Client - Command Reference
 =========================================
 
-BASIC COMMANDS:
-  Invoke-RemotePowerShell "command"    Execute PowerShell on remote worker
-  Invoke-RemoteCmd "command"           Execute CMD on remote worker
+BASIC COMMANDS (File-based, point-to-point):
+  Invoke-RemotePowerShell "command"    Execute PowerShell on specific worker
+  Invoke-RemoteCmd "command"           Execute CMD on specific worker
   Get-RemoteStatus                     Get worker CPU, memory, and job status
+
+POOLED JOBS (Database-based, multi-worker):
+  Test-JobPoolConnection               Test database connection
+  Submit-PooledJob -JobType X -Payload Y   Submit job to pool
+  Get-PooledJobStatus -JobId X         Get job status
+  Wait-PooledJob -JobId X              Wait for job completion
+  Invoke-PooledPowerShell "command"    Submit and wait for PowerShell job
+  Get-JobPoolProgress                  View progress by job type
+  Get-ActivePoolWorkers                See which workers are active
+  Get-RecentPoolErrors                 View recent failures
+  Reset-FailedPoolJobs                 Reset failed jobs for retry
 
 PROCESS MANAGEMENT:
   Start-RemoteProcess "app.exe"        Start a process
@@ -555,10 +942,14 @@ LOW-LEVEL:
   Get-RemoteResult -JobId X                 Get existing result
 
 EXAMPLES:
+  # File-based (single worker)
   Invoke-RemotePowerShell "Get-Process | Select -First 5"
   Start-RemoteProcess "python.exe" -Arguments "C:\script.py"
-  Get-RemoteStatus | Format-List
-  Update-RemoteWorkerService -ScriptPath ".\RemoteWorkerService.ps1"
+
+  # Pooled jobs (any available worker)
+  Submit-PooledJob -JobType "general" -Payload @{action="powershell"; command="Get-Process"}
+  Invoke-PooledPowerShell "Get-ChildItem C:\Temp"
+  Get-JobPoolProgress | Format-Table
 
 "@ -ForegroundColor Cyan
 }
@@ -566,6 +957,7 @@ EXAMPLES:
 # Export functions when loaded as a module
 if ($MyInvocation.MyCommand.ScriptBlock.Module) {
     Export-ModuleMember -Function @(
+        # File-based commands (point-to-point)
         'Send-RemoteCommand',
         'Wait-RemoteResult',
         'Get-RemoteResult',
@@ -579,6 +971,17 @@ if ($MyInvocation.MyCommand.ScriptBlock.Module) {
         'Update-RemoteWorkerService',
         'Get-RemoteWorkerVersion',
         'Undo-RemoteWorkerUpdate',
+        # Pooled jobs (database-based)
+        'Test-JobPoolConnection',
+        'Submit-PooledJob',
+        'Get-PooledJobStatus',
+        'Wait-PooledJob',
+        'Get-JobPoolProgress',
+        'Get-ActivePoolWorkers',
+        'Get-RecentPoolErrors',
+        'Reset-FailedPoolJobs',
+        'Invoke-PooledPowerShell',
+        # Help
         'Show-RemoteWorkerHelp'
     )
 }

@@ -131,6 +131,133 @@ The service automatically:
 - Restarts itself after the update
 - Allows rollback to the previous version
 
+## Job Pool (Multi-Worker Distribution)
+
+The job pool system uses PostgreSQL for distributing work across multiple machines.
+Jobs are placed in a shared queue that any available worker can claim atomically.
+
+### When to Use Job Pool vs File-Based
+
+| Use File-Based | Use Job Pool |
+|----------------|--------------|
+| Quick interactive commands | Batch processing (OCR, extraction) |
+| Targeting a specific worker | Load-balanced across workers |
+| Real-time responses needed | Can tolerate queue delay |
+| Simple status checks | Large parallelizable workloads |
+
+### Test Connection
+```powershell
+Test-JobPoolConnection
+```
+
+### Submit Jobs to Pool
+```powershell
+# Submit a PowerShell job
+Submit-PooledJob -JobType "general" -Payload @{
+    action = "powershell"
+    command = "Get-Process | Sort CPU -Desc | Select -First 10"
+}
+
+# Submit with priority (higher = more urgent)
+Submit-PooledJob -JobType "general" -Payload @{
+    action = "python"
+    script = "C:\scripts\process_batch.py"
+    args = @("--input", "data.csv")
+} -Priority 10
+
+# Quick submit and wait
+Invoke-PooledPowerShell "Get-ChildItem C:\Temp"
+```
+
+### Monitor Jobs
+```powershell
+# Get status of a specific job
+Get-PooledJobStatus -JobId 123
+
+# Wait for job completion
+$result = Wait-PooledJob -JobId 123
+
+# View progress by job type
+Get-JobPoolProgress | Format-Table
+
+# See active workers
+Get-ActivePoolWorkers
+
+# View recent errors
+Get-RecentPoolErrors -Limit 10
+```
+
+### Retry Failed Jobs
+```powershell
+# Reset all failed jobs to pending
+Reset-FailedPoolJobs
+
+# Reset only specific job type
+Reset-FailedPoolJobs -JobType "ocr"
+```
+
+### Starting the Python Worker
+
+On each worker machine, run:
+```bash
+cd D:\Personal\Epstein\epstein_extraction
+python services/pooled_job_worker.py
+```
+
+The worker will automatically:
+- Check for updates from the git repository
+- Detect machine capabilities (CPU cores, memory)
+- Set optimal concurrency based on resources
+
+### Worker Options
+
+```bash
+# Auto-detect everything (recommended)
+python services/pooled_job_worker.py
+
+# Process specific job types
+python services/pooled_job_worker.py --job-types ocr,entity
+
+# Override auto-detected concurrency
+python services/pooled_job_worker.py --max-concurrent 5
+
+# Show machine capabilities
+python services/pooled_job_worker.py --show-capabilities
+
+# Check for updates
+python services/pooled_job_worker.py --check-update
+
+# Skip auto-update check
+python services/pooled_job_worker.py --no-update
+```
+
+Options:
+- `--job-types general,ocr`: Only process specific job types
+- `--max-concurrent N`: Override auto-detected concurrency
+- `--poll-interval 1.0`: Poll every 1 second (default: 2.0)
+- `--stale-timeout 30`: Reclaim stale jobs after 30 minutes
+- `--no-update`: Skip version check on startup
+- `--check-update`: Check for updates and prompt to apply
+- `--show-capabilities`: Display machine capabilities and exit
+
+### Auto-Update Feature
+
+The worker checks its version against the git repository on startup:
+- If an update is available, it pulls changes and restarts automatically
+- Use `--no-update` to skip this check
+- Use `--check-update` for interactive update control
+
+### Capability Detection
+
+The worker auto-detects machine resources:
+- **CPU cores**: Physical cores for optimal parallelism
+- **Memory**: Available RAM for memory-intensive jobs
+- **Recommended concurrency** based on job type:
+  - `general`: ~500MB per job
+  - `ocr`: ~1GB per job
+  - `vision`: ~2GB per job
+  - `entity`: ~300MB per job
+
 ## Troubleshooting
 
 ### Cannot connect to share
