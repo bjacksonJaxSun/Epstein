@@ -126,7 +126,6 @@ def start_workers(num_instances, max_concurrent, db_url, dry_run=False):
             '--job-types', 'extract_text',
             '--max-concurrent', str(max_concurrent),
             '--batch-size', str(max_concurrent),
-            '--no-update',
             '--db-url', db_url,
         ]
 

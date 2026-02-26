@@ -43,7 +43,7 @@ from psycopg2.extras import RealDictCursor
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from services.job_handlers import handle_general_job, handle_extraction_job, JobResult
+from services.job_handlers import handle_general_job, handle_extraction_job, handle_chunk_embed_job, JobResult
 
 logging.basicConfig(
     level=logging.INFO,
@@ -78,6 +78,7 @@ class DatabaseUpdater:
         'services/job_handlers/__init__.py',
         'services/job_handlers/general_handler.py',
         'services/job_handlers/extraction_handler.py',
+        'services/job_handlers/chunk_embed_handler.py',
         'start_extraction_workers.py',
     ]
 
@@ -408,6 +409,7 @@ class PooledJobWorker:
         self.handlers: dict[str, Callable[[dict], JobResult]] = {}
         self.shutdown_requested = False
         self.active_jobs = 0
+        self._slot_freed = asyncio.Event()  # signalled when a job completes
         self.updater = updater
         self.started_at = datetime.now(timezone.utc)
 
@@ -421,6 +423,7 @@ class PooledJobWorker:
         # Register default handlers
         self.register_handler('general', handle_general_job)
         self.register_handler('extract_text', handle_extraction_job)
+        self.register_handler('chunk_embed', handle_chunk_embed_job)
 
     def register_handler(self, job_type: str, handler: Callable[[dict], JobResult]):
         """Register a handler function for a job type."""
@@ -611,6 +614,7 @@ class PooledJobWorker:
             logger.exception(f"Job {job_id} exception: {e}")
         finally:
             self.active_jobs -= 1
+            self._slot_freed.set()  # wake main loop to claim more work
 
     async def run(self):
         """Main worker loop. Never blocks on individual jobs."""
@@ -665,8 +669,22 @@ class PooledJobWorker:
                 for job in jobs:
                     asyncio.create_task(self.process_job(job))
 
-            # Always sleep between iterations — keeps heartbeat + commands responsive
-            await asyncio.sleep(self.poll_interval)
+            # Adaptive polling: stay aggressive when there's work and open slots,
+            # back off when the queue is empty or we're fully loaded.
+            self._slot_freed.clear()
+            slots_open = self.active_jobs < self.max_concurrent
+            if jobs and slots_open:
+                # Got work and still have capacity — likely more in the queue
+                await asyncio.sleep(0.1)
+            elif slots_open:
+                # Have capacity but queue returned nothing — normal back-off
+                await asyncio.sleep(self.poll_interval)
+            else:
+                # Fully loaded — wait until a job completes or timeout
+                try:
+                    await asyncio.wait_for(self._slot_freed.wait(), timeout=self.poll_interval)
+                except asyncio.TimeoutError:
+                    pass
 
         # Best-effort final heartbeat with shutting_down status
         self.send_heartbeat(status='shutting_down')
