@@ -127,6 +127,34 @@ public class PipelineController : ControllerBase
             }
         }
 
+        // Paused / stopped counts (supplementary — not in the view)
+        await using (var cmd = new NpgsqlCommand(@"
+            SELECT job_type,
+              COUNT(*) FILTER (WHERE status = 'paused')  AS paused,
+              COUNT(*) FILTER (WHERE status = 'stopped') AS stopped
+            FROM job_pool
+            WHERE status IN ('paused', 'stopped')
+            GROUP BY job_type", conn))
+        {
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var jobType = reader.GetString(0);
+                var paused  = reader.GetInt64(1);
+                var stopped = reader.GetInt64(2);
+                var summary = response.Summary.FirstOrDefault(s => s.JobType == jobType);
+                if (summary != null)
+                {
+                    summary.Paused  = paused;
+                    summary.Stopped = stopped;
+                }
+                else
+                {
+                    response.Summary.Add(new JobQueueSummary { JobType = jobType, Paused = paused, Stopped = stopped });
+                }
+            }
+        }
+
         // Throughput (last 5 min, per type)
         await using (var cmd = new NpgsqlCommand(@"
             SELECT job_type, COUNT(*) as completed_5min
@@ -259,6 +287,78 @@ public class PipelineController : ControllerBase
         }
 
         return Ok(kpis);
+    }
+
+    [HttpPost("job-types/{jobType}/pause")]
+    public async Task<ActionResult> PauseJobType(string jobType)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE job_pool SET status = 'paused', updated_at = NOW() WHERE job_type = @jobType AND status = 'pending'", conn);
+        cmd.Parameters.AddWithValue("jobType", jobType);
+        cmd.CommandTimeout = 300;
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return Ok(new { success = true, affected });
+    }
+
+    [HttpPost("job-types/{jobType}/resume")]
+    public async Task<ActionResult> ResumeJobType(string jobType)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE job_pool SET status = 'pending', updated_at = NOW() WHERE job_type = @jobType AND status = 'paused'", conn);
+        cmd.Parameters.AddWithValue("jobType", jobType);
+        cmd.CommandTimeout = 300;
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return Ok(new { success = true, affected });
+    }
+
+    [HttpPost("job-types/{jobType}/stop")]
+    public async Task<ActionResult> StopJobType(string jobType)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "UPDATE job_pool SET status = 'stopped', updated_at = NOW() WHERE job_type = @jobType AND status IN ('pending', 'claimed', 'paused')", conn);
+        cmd.Parameters.AddWithValue("jobType", jobType);
+        cmd.CommandTimeout = 300;
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return Ok(new { success = true, affected });
+    }
+
+    [HttpPost("job-types/{jobType}/retry-failed")]
+    public async Task<ActionResult> RetryFailedJobs(string jobType)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(@"
+            UPDATE job_pool
+            SET status = 'pending',
+                updated_at = NOW(),
+                error_message = NULL,
+                claimed_by = NULL,
+                started_at = NULL,
+                completed_at = NULL
+            WHERE job_type = @jobType AND status = 'failed'", conn);
+        cmd.Parameters.AddWithValue("jobType", jobType);
+        cmd.CommandTimeout = 300;
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return Ok(new { success = true, affected });
+    }
+
+    [HttpPost("job-types/{jobType}/clear-stopped")]
+    public async Task<ActionResult> ClearStoppedJobs(string jobType)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "DELETE FROM job_pool WHERE job_type = @jobType AND status IN ('stopped', 'paused')", conn);
+        cmd.Parameters.AddWithValue("jobType", jobType);
+        cmd.CommandTimeout = 300;
+        var affected = await cmd.ExecuteNonQueryAsync();
+        return Ok(new { success = true, affected });
     }
 
     [HttpGet("throughput-history")]
@@ -487,6 +587,8 @@ public class JobQueueSummary
     public long Total { get; set; }
     public double PctComplete { get; set; }
     public long Completed5Min { get; set; }
+    public long Paused { get; set; }
+    public long Stopped { get; set; }
 }
 
 public class JobError

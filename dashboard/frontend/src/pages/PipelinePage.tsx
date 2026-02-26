@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Database,
@@ -22,6 +22,13 @@ import {
   Power,
   RotateCcw,
   Zap,
+  Pause,
+  Play,
+  Trash2,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import { apiGet, apiPost } from '@/api/client';
 import { cn } from '@/lib/utils';
@@ -82,6 +89,8 @@ interface JobQueueSummary {
   total: number;
   pctComplete: number;
   completed5Min: number;
+  paused: number;
+  stopped: number;
 }
 
 interface PipelineKpis {
@@ -119,6 +128,16 @@ const pipelineApi = {
     apiPost<{ success: boolean; message: string }>(`/pipeline/nodes/${encodeURIComponent(hostname)}/command`, { command }),
   sendWorkerCommand: (workerId: string, command: string) =>
     apiPost<{ success: boolean; message: string }>(`/pipeline/workers/${encodeURIComponent(workerId)}/command`, { command }),
+  pauseJobType: (jobType: string) =>
+    apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/pause`, {}),
+  resumeJobType: (jobType: string) =>
+    apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/resume`, {}),
+  stopJobType: (jobType: string) =>
+    apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/stop`, {}),
+  clearStoppedJobs: (jobType: string) =>
+    apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/clear-stopped`, {}),
+  retryFailedJobs: (jobType: string) =>
+    apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/retry-failed`, {}),
 };
 
 // --- Utility functions ---
@@ -224,6 +243,36 @@ function StatCard({
         </div>
       </div>
     </div>
+  );
+}
+
+// --- Sort/filter helpers for Job Queues ---
+
+type SortCol = 'jobType' | 'pending' | 'paused' | 'stopped' | 'running' | 'completed' | 'failed' | 'total' | 'rate' | 'eta' | 'pct';
+
+function SortHeader({
+  col, label, current, dir, onSort, align = 'right',
+}: {
+  col: SortCol;
+  label: string;
+  current: SortCol;
+  dir: 'asc' | 'desc';
+  onSort: (col: SortCol) => void;
+  align?: 'left' | 'right';
+}) {
+  const active = col === current;
+  return (
+    <th
+      className="px-4 py-3 text-text-tertiary font-medium cursor-pointer select-none hover:text-text-secondary group whitespace-nowrap"
+      onClick={() => onSort(col)}
+    >
+      <div className={cn('flex items-center gap-1', align === 'right' ? 'justify-end' : 'justify-start')}>
+        {label}
+        {active
+          ? (dir === 'asc' ? <ArrowUp className="h-3 w-3 flex-shrink-0" /> : <ArrowDown className="h-3 w-3 flex-shrink-0" />)
+          : <ArrowUpDown className="h-3 w-3 flex-shrink-0 opacity-0 group-hover:opacity-40" />}
+      </div>
+    </th>
   );
 }
 
@@ -512,6 +561,62 @@ function NodesTab({ nodes }: { nodes: NodeInfo[] | undefined }) {
 // --- Job Queues Tab ---
 
 function JobQueuesTab({ jobs, kpis }: { jobs: JobsResponse | undefined; kpis: PipelineKpis | undefined }) {
+  const queryClient = useQueryClient();
+  const [sortCol, setSortCol] = useState<SortCol>('jobType');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [filter, setFilter] = useState('');
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
+  };
+
+  const pauseMutation = useMutation({
+    mutationFn: (jobType: string) => pipelineApi.pauseJobType(jobType),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-jobs'] }),
+  });
+  const resumeMutation = useMutation({
+    mutationFn: (jobType: string) => pipelineApi.resumeJobType(jobType),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-jobs'] }),
+  });
+  const stopMutation = useMutation({
+    mutationFn: (jobType: string) => pipelineApi.stopJobType(jobType),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-jobs'] }),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (jobType: string) => pipelineApi.clearStoppedJobs(jobType),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-jobs'] }),
+  });
+  const retryMutation = useMutation({
+    mutationFn: (jobType: string) => pipelineApi.retryFailedJobs(jobType),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['pipeline-jobs'] }),
+  });
+
+  const sortedRows = useMemo(() => {
+    if (!jobs?.summary) return [];
+    let rows = [...jobs.summary];
+    if (filter) rows = rows.filter(r => r.jobType.toLowerCase().includes(filter.toLowerCase()));
+    return rows.sort((a, b) => {
+      const etaVal = (r: JobQueueSummary) => kpis?.queueEta.find(e => e.jobType === r.jobType)?.etaMinutes ?? Infinity;
+      const rateVal = (r: JobQueueSummary) => r.completed5Min / 5;
+      let cmp = 0;
+      switch (sortCol) {
+        case 'jobType':   cmp = a.jobType.localeCompare(b.jobType); break;
+        case 'pending':   cmp = a.pending - b.pending; break;
+        case 'paused':    cmp = (a.paused ?? 0) - (b.paused ?? 0); break;
+        case 'stopped':   cmp = (a.stopped ?? 0) - (b.stopped ?? 0); break;
+        case 'running':   cmp = (a.running + a.claimed) - (b.running + b.claimed); break;
+        case 'completed': cmp = a.completed - b.completed; break;
+        case 'failed':    cmp = a.failed - b.failed; break;
+        case 'total':     cmp = a.total - b.total; break;
+        case 'rate':      cmp = rateVal(a) - rateVal(b); break;
+        case 'eta':       cmp = etaVal(a) - etaVal(b); break;
+        case 'pct':       cmp = a.pctComplete - b.pctComplete; break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [jobs?.summary, filter, sortCol, sortDir, kpis]);
+
   if (!jobs || jobs.summary.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-48 text-text-tertiary">
@@ -523,32 +628,73 @@ function JobQueuesTab({ jobs, kpis }: { jobs: JobsResponse | undefined; kpis: Pi
 
   return (
     <div className="space-y-4">
+      {/* Filter bar */}
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-xs w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Filter job types…"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm bg-surface-raised border border-border-subtle rounded-lg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-accent-blue"
+          />
+        </div>
+        {filter && (
+          <span className="text-xs text-text-tertiary">
+            {sortedRows.length} of {jobs.summary.length} types
+          </span>
+        )}
+      </div>
+
+      {/* Table */}
       <div className="bg-surface-raised border border-border-subtle rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border-subtle text-left">
-                <th className="px-4 py-3 text-text-tertiary font-medium">Job Type</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">Pending</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">Running</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">Completed</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">Failed</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">Total</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">Rate/min</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium text-right">ETA</th>
-                <th className="px-4 py-3 text-text-tertiary font-medium w-40">Progress</th>
+              <tr className="border-b border-border-subtle">
+                <SortHeader col="jobType"   label="Job Type"  current={sortCol} dir={sortDir} onSort={handleSort} align="left" />
+                <SortHeader col="pending"   label="Pending"   current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="paused"    label="Paused"    current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="stopped"   label="Stopped"   current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="running"   label="Running"   current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="completed" label="Completed" current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="failed"    label="Failed"    current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="total"     label="Total"     current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="rate"      label="Rate/min"  current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="eta"       label="ETA"       current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="pct"       label="Progress"  current={sortCol} dir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 text-text-tertiary font-medium text-center whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-subtle">
-              {jobs.summary.map(row => {
+              {sortedRows.map(row => {
                 const eta = kpis?.queueEta.find(e => e.jobType === row.jobType);
                 const rate = row.completed5Min > 0 ? (row.completed5Min / 5).toFixed(1) : '0';
+                const hasPending = row.pending > 0;
+                const hasPaused  = (row.paused  ?? 0) > 0;
+                const hasStopped = (row.stopped ?? 0) > 0;
+                const hasFailed  = row.failed > 0;
+                const isActive   = hasPending || row.running > 0 || row.claimed > 0;
+                const canStop    = isActive || hasPaused;
+                const canDelete  = hasStopped || hasPaused;
+
                 return (
                   <tr key={row.jobType} className="hover:bg-surface-overlay/50">
                     <td className="px-4 py-3 text-text-primary font-mono">{row.jobType}</td>
                     <td className="px-4 py-3 text-right text-text-secondary">{row.pending.toLocaleString()}</td>
                     <td className="px-4 py-3 text-right">
-                      <span className={row.running > 0 ? 'text-amber-400' : 'text-text-secondary'}>
+                      {hasPaused
+                        ? <span className="text-amber-400 font-medium">{(row.paused ?? 0).toLocaleString()}</span>
+                        : <span className="text-text-tertiary">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {hasStopped
+                        ? <span className="text-red-400 font-medium">{(row.stopped ?? 0).toLocaleString()}</span>
+                        : <span className="text-text-tertiary">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={row.running + row.claimed > 0 ? 'text-amber-400' : 'text-text-secondary'}>
                         {(row.running + row.claimed).toLocaleString()}
                       </span>
                     </td>
@@ -563,8 +709,93 @@ function JobQueuesTab({ jobs, kpis }: { jobs: JobsResponse | undefined; kpis: Pi
                     <td className="px-4 py-3 text-right text-text-secondary">{formatEta(eta?.etaMinutes ?? null)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <ProgressBar percent={row.pctComplete} className="flex-1" />
+                        <ProgressBar percent={row.pctComplete} className="flex-1 min-w-[4rem]" />
                         <span className="text-xs text-text-tertiary w-12 text-right">{row.pctComplete.toFixed(1)}%</span>
+                      </div>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1">
+                        {/* Pause / Resume toggle */}
+                        {hasPaused ? (
+                          <button
+                            onClick={() => resumeMutation.mutate(row.jobType)}
+                            disabled={resumeMutation.isPending}
+                            className="p-1.5 rounded hover:bg-surface-overlay text-amber-400 hover:text-amber-300 transition-colors"
+                            title="Resume paused jobs"
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { if (hasPending) pauseMutation.mutate(row.jobType); }}
+                            disabled={!hasPending || pauseMutation.isPending}
+                            className={cn(
+                              'p-1.5 rounded transition-colors',
+                              hasPending
+                                ? 'hover:bg-surface-overlay text-text-tertiary hover:text-amber-400'
+                                : 'text-text-disabled opacity-30 cursor-not-allowed',
+                            )}
+                            title="Pause pending jobs"
+                          >
+                            <Pause className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+
+                        {/* Stop */}
+                        <button
+                          onClick={() => {
+                            if (canStop && confirm(`Stop all pending/running jobs for "${row.jobType}"?`))
+                              stopMutation.mutate(row.jobType);
+                          }}
+                          disabled={!canStop || stopMutation.isPending}
+                          className={cn(
+                            'p-1.5 rounded transition-colors',
+                            canStop
+                              ? 'hover:bg-surface-overlay text-text-tertiary hover:text-red-400'
+                              : 'text-text-disabled opacity-30 cursor-not-allowed',
+                          )}
+                          title="Stop all pending/running jobs"
+                        >
+                          <Square className="h-3.5 w-3.5" />
+                        </button>
+
+                        {/* Delete stopped */}
+                        <button
+                          onClick={() => {
+                            if (canDelete && confirm(`Permanently delete all stopped/paused jobs for "${row.jobType}"?`))
+                              deleteMutation.mutate(row.jobType);
+                          }}
+                          disabled={!canDelete || deleteMutation.isPending}
+                          className={cn(
+                            'p-1.5 rounded transition-colors',
+                            canDelete
+                              ? 'hover:bg-surface-overlay text-text-tertiary hover:text-red-400'
+                              : 'text-text-disabled opacity-30 cursor-not-allowed',
+                          )}
+                          title="Delete stopped/paused jobs"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+
+                        {/* Retry failed */}
+                        <button
+                          onClick={() => {
+                            if (hasFailed && confirm(`Retry all ${row.failed.toLocaleString()} failed jobs for "${row.jobType}"?`))
+                              retryMutation.mutate(row.jobType);
+                          }}
+                          disabled={!hasFailed || retryMutation.isPending}
+                          className={cn(
+                            'p-1.5 rounded transition-colors',
+                            hasFailed
+                              ? 'hover:bg-surface-overlay text-text-tertiary hover:text-green-400'
+                              : 'text-text-disabled opacity-30 cursor-not-allowed',
+                          )}
+                          title="Retry all failed jobs"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     </td>
                   </tr>
