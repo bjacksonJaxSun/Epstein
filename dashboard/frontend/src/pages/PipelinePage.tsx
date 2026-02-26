@@ -4,7 +4,6 @@ import {
   Database,
   FileText,
   Image,
-  Eye,
   Cpu,
   Server,
   HardDrive,
@@ -115,6 +114,17 @@ interface JobsResponse {
   errors: JobError[];
 }
 
+interface LaunchStatus {
+  extractionDirFound: boolean;
+  scripts: Record<string, boolean>;
+}
+
+interface LaunchResult {
+  success: boolean;
+  message: string;
+  jobsSubmitted?: number;
+}
+
 // --- API ---
 
 const pipelineApi = {
@@ -138,6 +148,11 @@ const pipelineApi = {
     apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/clear-stopped`, {}),
   retryFailedJobs: (jobType: string) =>
     apiPost<{ success: boolean; affected: number }>(`/pipeline/job-types/${encodeURIComponent(jobType)}/retry-failed`, {}),
+  getLaunchStatus: () => apiGet<LaunchStatus>('/pipeline/launch/status'),
+  submitExtractText: () => apiPost<LaunchResult>('/pipeline/launch/submit-extract-text', {}),
+  submitChunkEmbed: () => apiPost<LaunchResult>('/pipeline/launch/submit-chunk-embed', {}),
+  startWorkers: () => apiPost<LaunchResult>('/pipeline/launch/start-workers', {}),
+  startEmbeddingServer: () => apiPost<LaunchResult>('/pipeline/launch/start-embedding-server', {}),
 };
 
 // --- Utility functions ---
@@ -278,13 +293,14 @@ function SortHeader({
 
 // --- Tab Navigation ---
 
-type TabKey = 'overview' | 'nodes' | 'jobs' | 'errors';
+type TabKey = 'overview' | 'nodes' | 'jobs' | 'errors' | 'launch';
 
 const tabs: { key: TabKey; label: string; icon: typeof Activity }[] = [
   { key: 'overview', label: 'Overview', icon: Activity },
   { key: 'nodes', label: 'Nodes', icon: Server },
   { key: 'jobs', label: 'Job Queues', icon: Database },
   { key: 'errors', label: 'Errors', icon: AlertTriangle },
+  { key: 'launch', label: 'Launch', icon: Zap },
 ];
 
 // --- Overview Tab ---
@@ -853,6 +869,340 @@ function ErrorsTab({ errors }: { errors: JobError[] | undefined }) {
   );
 }
 
+// --- Launch Tab ---
+
+// All pipeline steps in chronological order
+const PIPELINE_STEPS: Array<{
+  step: number;
+  id: string;
+  enabled: boolean;
+  title: string;
+  description: string;
+  actionLabel?: string;
+  hint?: string;
+  prompt?: string;
+}> = [
+  {
+    step: 1,
+    id: 'download',
+    enabled: false,
+    title: 'Download DOJ Files to Cloudflare R2',
+    description: 'Fetch the raw PDF and media files from the DOJ public catalog and upload them to Cloudflare R2 for distributed access by workers.',
+    hint: 'A standalone downloader exists but is not integrated into the job pool.',
+    prompt: `Integrate DOJ file downloading into the Epstein job pool system.
+
+Create a \`download_r2\` job handler in \`epstein_extraction/services/job_handlers/\` that:
+1. Reads a document_id + download_url from the job payload
+2. Downloads the PDF/media file from the DOJ URL
+3. Uploads it to Cloudflare R2 under the appropriate DataSet_N/EFTA key
+4. Updates \`documents.r2_key\` and \`documents.download_status='completed'\`
+5. Registers in \`__init__.py\`
+
+Add \`submit_download_jobs.py\` that inserts \`download_r2\` jobs for documents where:
+- \`r2_key IS NULL\` AND \`download_url IS NOT NULL\`
+
+Reference \`extraction_handler.py\` for the R2 boto3 pattern and \`submit_extraction_jobs.py\` for the submission pattern.`,
+  },
+  {
+    step: 2,
+    id: 'extract',
+    enabled: true,
+    title: 'Submit Text Extraction Jobs',
+    description: 'Queue extract_text jobs for all pending documents that have an R2 key. Workers will download each PDF from R2 and extract text using PyMuPDF and pdfplumber.',
+    actionLabel: 'Submit Jobs',
+  },
+  {
+    step: 3,
+    id: 'workers',
+    enabled: true,
+    title: 'Start Extraction Workers',
+    description: 'Launch the auto-scaling extraction worker process on this machine. It spins up workers based on available CPU/memory and claims extract_text jobs from the queue.',
+    actionLabel: 'Start Workers',
+  },
+  {
+    step: 4,
+    id: 'ocr',
+    enabled: false,
+    title: 'OCR Processing (Scanned PDFs)',
+    description: 'Extract text from scanned PDFs using Tesseract OCR — for documents where PyMuPDF returned empty or minimal text.',
+    hint: 'ocr_all_documents.py exists but is not integrated into the job pool system.',
+    prompt: `Integrate OCR processing into the Epstein job pipeline.
+
+Create an \`ocr_extract\` job handler in \`epstein_extraction/services/job_handlers/\` that:
+1. Downloads a PDF from Cloudflare R2 using the document's r2_key
+2. Runs Tesseract OCR on each page using pytesseract
+3. Saves the combined text to \`documents.full_text\` and sets \`extraction_status='completed'\`
+4. Registers in \`__init__.py\` alongside extract_text and chunk_embed
+
+Then add \`submit_ocr_jobs.py\` that inserts \`ocr_extract\` jobs for documents where:
+- full_text IS NULL (or LENGTH < 50) AND r2_key IS NOT NULL AND extraction_status = 'completed'
+  (i.e., the regular extractor already ran but returned no text — likely scanned)
+
+Follow the patterns in \`extraction_handler.py\` and \`submit_extraction_jobs.py\`.`,
+  },
+  {
+    step: 5,
+    id: 'embed',
+    enabled: true,
+    title: 'Start Embedding Server',
+    description: 'Launch the local sentence-transformer HTTP server on port 5050. This must be running before chunk_embed workers can generate vector embeddings.',
+    actionLabel: 'Start Server',
+  },
+  {
+    step: 6,
+    id: 'chunk',
+    enabled: true,
+    title: 'Submit Chunk & Embed Jobs',
+    description: 'Queue chunk_embed jobs for documents that have text but no vector embeddings. Workers split text into chunks and call the embedding server.',
+    actionLabel: 'Submit Jobs',
+  },
+  {
+    step: 7,
+    id: 'ner',
+    enabled: false,
+    title: 'Named Entity Recognition',
+    description: 'Extract people, organizations, and locations from document text using NLP.',
+    hint: 'ner_processor.py exists but is not integrated into the job pool.',
+    prompt: `Integrate Named Entity Recognition into the Epstein job pipeline.
+
+Create a \`ner_extract\` job handler in \`epstein_extraction/services/job_handlers/\` that:
+1. Reads \`documents.full_text\` for the given document_id
+2. Runs spaCy NER (en_core_web_lg) or calls Claude API to extract entities
+3. Saves to a \`document_entities\` table:
+   (id, document_id, entity_text, entity_type, start_char, end_char, confidence)
+4. Registers in \`__init__.py\`
+
+Add \`submit_ner_jobs.py\` targeting documents with full_text but no rows in document_entities.
+Follow the patterns in \`chunk_embed_handler.py\` and \`submit_chunk_embed_jobs.py\`.`,
+  },
+  {
+    step: 8,
+    id: 'financial',
+    enabled: false,
+    title: 'Financial Data Extraction',
+    description: 'Extract transactions, wire transfers, account numbers, and dollar amounts using AI.',
+    hint: 'extract_financials.py exists but is not integrated into the job pool.',
+    prompt: `Integrate financial data extraction into the Epstein job pipeline.
+
+Create a \`financial_extract\` job handler in \`epstein_extraction/services/job_handlers/\` that:
+1. Reads \`documents.full_text\` for the given document_id
+2. Calls Claude API (claude-sonnet-4-6) with a structured prompt to extract:
+   - Dollar amounts, dates, account numbers, wire transfers, payers, recipients
+3. Saves results to a \`document_financials\` table:
+   (id, document_id, amount_usd, transaction_date, account_number, payer, recipient, description, raw_json)
+4. Registers in \`__init__.py\`
+
+Add \`submit_financial_jobs.py\` targeting documents with full_text but no rows in document_financials.
+Reference the \`chunk_embed_handler.py\` pattern.`,
+  },
+  {
+    step: 9,
+    id: 'vision',
+    enabled: false,
+    title: 'Vision Analysis',
+    description: 'Analyze document images and photos using AI vision models to generate descriptions.',
+    hint: 'run_vision_analysis.py exists but is not integrated into the job pool.',
+    prompt: `Integrate vision analysis into the Epstein job pipeline.
+
+Create a \`vision_analyze\` job handler in \`epstein_extraction/services/job_handlers/\` that:
+1. Downloads images or PDF pages from Cloudflare R2
+2. Sends them to Claude claude-haiku-4-5-20251001 (Anthropic API) for description
+3. Saves image descriptions to a new \`document_image_descriptions\` table
+   (columns: id, document_id, page_number, description, analyzed_at)
+4. Registers in \`__init__.py\`
+
+Add \`submit_vision_jobs.py\` following the pattern of \`submit_extraction_jobs.py\`.
+Documents to target: those with r2_key but no rows in document_image_descriptions.`,
+  },
+];
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="flex items-center gap-1.5 px-2 py-1 text-xs bg-surface-overlay border border-border-subtle rounded hover:bg-surface-raised transition-colors text-text-tertiary hover:text-text-secondary"
+    >
+      {copied ? <CheckCircle className="h-3 w-3 text-green-400" /> : <FileText className="h-3 w-3" />}
+      {copied ? 'Copied!' : 'Copy prompt'}
+    </button>
+  );
+}
+
+function LaunchTab() {
+  const queryClient = useQueryClient();
+  const [results, setResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
+
+  const { data: launchStatus } = useQuery({
+    queryKey: ['pipeline-launch-status'],
+    queryFn: pipelineApi.getLaunchStatus,
+  });
+
+  function makeOnSuccess(id: string) {
+    return (data: LaunchResult) => {
+      setResults(prev => ({ ...prev, [id]: { ok: data.success, msg: data.message } }));
+      queryClient.invalidateQueries({ queryKey: ['pipeline-jobs'] });
+    };
+  }
+  function makeOnError(id: string) {
+    return (err: Error) => {
+      setResults(prev => ({ ...prev, [id]: { ok: false, msg: err.message } }));
+    };
+  }
+
+  const submitExtractMutation = useMutation({
+    mutationFn: pipelineApi.submitExtractText,
+    onSuccess: makeOnSuccess('extract'),
+    onError: makeOnError('extract'),
+  });
+  const submitChunkMutation = useMutation({
+    mutationFn: pipelineApi.submitChunkEmbed,
+    onSuccess: makeOnSuccess('chunk'),
+    onError: makeOnError('chunk'),
+  });
+  const startWorkersMutation = useMutation({
+    mutationFn: pipelineApi.startWorkers,
+    onSuccess: makeOnSuccess('workers'),
+    onError: makeOnError('workers'),
+  });
+  const startEmbedMutation = useMutation({
+    mutationFn: pipelineApi.startEmbeddingServer,
+    onSuccess: makeOnSuccess('embed'),
+    onError: makeOnError('embed'),
+  });
+
+  // Map step ID → mutation for enabled steps
+  const mutationMap: Record<string, ReturnType<typeof useMutation<LaunchResult, Error, void>>> = {
+    extract: submitExtractMutation,
+    workers: startWorkersMutation,
+    embed: startEmbedMutation,
+    chunk: submitChunkMutation,
+  };
+
+  const scriptKeyMap: Record<string, string> = {
+    extract: 'submitExtractText',
+    workers: 'startWorkers',
+    embed: 'startEmbeddingServer',
+    chunk: 'submitChunkEmbed',
+  };
+
+  const isLastStep = (i: number) => i === PIPELINE_STEPS.length - 1;
+
+  return (
+    <div className="max-w-2xl">
+      <p className="text-sm text-text-tertiary mb-6">
+        Pipeline steps in chronological order. Click actions to queue jobs or start processes.
+        Grayed steps need to be built first — use the copy button to get a Claude prompt.
+      </p>
+
+      <div className="relative">
+        {PIPELINE_STEPS.map((step, i) => {
+          const result = results[step.id];
+          const mutation = step.enabled ? mutationMap[step.id] : undefined;
+          const isPending = mutation?.isPending ?? false;
+          const scriptAvailable = !step.enabled
+            ? false
+            : (launchStatus?.scripts[scriptKeyMap[step.id]] ?? true);
+
+          return (
+            <div key={step.id} className="flex gap-4">
+              {/* Step indicator column */}
+              <div className="flex flex-col items-center">
+                <div className={cn(
+                  'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 z-10',
+                  step.enabled
+                    ? 'bg-accent-blue text-white'
+                    : 'bg-surface-overlay border border-border-subtle text-text-tertiary',
+                )}>
+                  {step.step}
+                </div>
+                {!isLastStep(i) && (
+                  <div className={cn(
+                    'w-px flex-1 my-1 min-h-[1rem]',
+                    step.enabled ? 'bg-accent-blue/30' : 'bg-border-subtle',
+                  )} />
+                )}
+              </div>
+
+              {/* Card */}
+              <div className={cn(
+                'flex-1 bg-surface-raised border border-border-subtle rounded-lg p-4 flex flex-col gap-2.5',
+                isLastStep(i) ? 'mb-0' : 'mb-3',
+                !step.enabled && 'opacity-70',
+              )}>
+                <div>
+                  <h3 className={cn(
+                    'font-medium text-sm',
+                    step.enabled ? 'text-text-primary' : 'text-text-secondary',
+                  )}>
+                    {step.title}
+                  </h3>
+                  <p className="text-xs text-text-tertiary mt-0.5">{step.description}</p>
+                </div>
+
+                {/* Result banner */}
+                {result && (
+                  <div className={cn(
+                    'flex items-start gap-2 px-3 py-1.5 rounded text-xs',
+                    result.ok ? 'bg-green-400/10 text-green-400' : 'bg-red-400/10 text-red-400',
+                  )}>
+                    {result.ok
+                      ? <CheckCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      : <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
+                    {result.msg}
+                  </div>
+                )}
+
+                {/* Disabled hint */}
+                {!step.enabled && step.hint && (
+                  <div className="flex items-start gap-2 px-3 py-1.5 bg-amber-400/5 border border-amber-400/20 rounded text-xs">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-amber-400/80">{step.hint}</span>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <span className="text-text-tertiary">Build with Claude:</span>
+                        <CopyButton text={step.prompt!} />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action button */}
+                {step.enabled ? (
+                  <button
+                    onClick={() => mutation?.mutate()}
+                    disabled={isPending || !scriptAvailable}
+                    className={cn(
+                      'self-start flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                      'bg-accent-blue/10 text-accent-blue border border-accent-blue/30',
+                      'hover:bg-accent-blue/20 disabled:opacity-50 disabled:cursor-not-allowed',
+                    )}
+                  >
+                    {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+                    {isPending ? 'Running…' : step.actionLabel}
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="self-start flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg bg-surface-overlay text-text-disabled cursor-not-allowed border border-border-subtle"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    Not built yet
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // --- Main Page ---
 
 export function PipelinePage() {
@@ -962,6 +1312,9 @@ export function PipelinePage() {
       )}
       {activeTab === 'errors' && (
         <ErrorsTab errors={jobs?.errors} />
+      )}
+      {activeTab === 'launch' && (
+        <LaunchTab />
       )}
     </div>
   );

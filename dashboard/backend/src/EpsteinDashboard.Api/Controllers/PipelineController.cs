@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
+using System.Diagnostics;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 
@@ -10,11 +11,13 @@ namespace EpsteinDashboard.Api.Controllers;
 public class PipelineController : ControllerBase
 {
     private readonly string _connectionString;
+    private readonly IWebHostEnvironment _env;
 
-    public PipelineController(IConfiguration configuration)
+    public PipelineController(IConfiguration configuration, IWebHostEnvironment env)
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? "Host=localhost;Database=epstein_documents;Username=epstein_user;Password=epstein_secure_pw_2024";
+        _env = env;
     }
 
     [HttpGet("status")]
@@ -436,6 +439,177 @@ public class PipelineController : ControllerBase
         return Ok(new { success = true, message = $"Command '{request.Command}' sent to worker {workerId}" });
     }
 
+    // ─── Launch Endpoints ───────────────────────────────────────────────────
+
+    [HttpGet("launch/status")]
+    public ActionResult<LaunchStatus> GetLaunchStatus()
+    {
+        var extractionDir = FindExtractionDir();
+        bool Exists(string script) => extractionDir != null && System.IO.File.Exists(Path.Combine(extractionDir, script));
+
+        return Ok(new LaunchStatus
+        {
+            ExtractionDirFound = extractionDir != null,
+            Scripts = new Dictionary<string, bool>
+            {
+                ["submitExtractText"] = Exists("submit_extraction_jobs.py"),
+                ["submitChunkEmbed"] = Exists("submit_chunk_embed_jobs.py"),
+                ["startWorkers"] = Exists("start_extraction_workers.py"),
+                ["startEmbeddingServer"] = Exists("start_embedding_server.py"),
+            }
+        });
+    }
+
+    [HttpPost("launch/submit-extract-text")]
+    public async Task<ActionResult<LaunchResult>> SubmitExtractTextJobs()
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO job_pool (job_type, payload, priority, timeout_seconds, source_machine)
+            SELECT
+                'extract_text',
+                jsonb_build_object('action', 'extract_text', 'document_id', document_id, 'r2_key', r2_key),
+                0, 300, 'dashboard-api'
+            FROM documents
+            WHERE extraction_status = 'pending'
+              AND r2_key IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1 FROM job_pool jp
+                  WHERE jp.job_type = 'extract_text'
+                    AND jp.status IN ('pending', 'claimed', 'running', 'paused')
+                    AND (jp.payload->>'document_id')::bigint = documents.document_id
+              )", conn);
+        cmd.CommandTimeout = 300;
+        var inserted = await cmd.ExecuteNonQueryAsync();
+
+        return Ok(new LaunchResult
+        {
+            Success = true,
+            Message = $"Submitted {inserted:N0} extract_text jobs to queue",
+            JobsSubmitted = inserted,
+        });
+    }
+
+    [HttpPost("launch/submit-chunk-embed")]
+    public async Task<ActionResult<LaunchResult>> SubmitChunkEmbedJobs()
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO job_pool (job_type, payload, priority, timeout_seconds, source_machine)
+            SELECT
+                'chunk_embed',
+                jsonb_build_object('action', 'chunk_embed', 'document_id', document_id),
+                0, 120, 'dashboard-api'
+            FROM documents d
+            WHERE NOT EXISTS (SELECT 1 FROM document_chunks c WHERE c.document_id = d.document_id)
+              AND NOT EXISTS (
+                  SELECT 1 FROM job_pool jp
+                  WHERE jp.job_type = 'chunk_embed'
+                    AND jp.status IN ('pending', 'claimed', 'running', 'paused')
+                    AND (jp.payload->>'document_id')::bigint = d.document_id
+              )
+              AND ((d.full_text IS NOT NULL AND LENGTH(d.full_text) > 50)
+                   OR (d.video_transcript IS NOT NULL AND LENGTH(d.video_transcript) > 10))", conn);
+        cmd.CommandTimeout = 300;
+        var inserted = await cmd.ExecuteNonQueryAsync();
+
+        return Ok(new LaunchResult
+        {
+            Success = true,
+            Message = $"Submitted {inserted:N0} chunk_embed jobs to queue",
+            JobsSubmitted = inserted,
+        });
+    }
+
+    [HttpPost("launch/start-workers")]
+    public ActionResult<LaunchResult> StartExtractionWorkers()
+    {
+        var extractionDir = FindExtractionDir();
+        if (extractionDir == null)
+            return BadRequest(new LaunchResult { Success = false, Message = "epstein_extraction directory not found" });
+
+        var scriptPath = Path.Combine(extractionDir, "start_extraction_workers.py");
+        if (!System.IO.File.Exists(scriptPath))
+            return BadRequest(new LaunchResult { Success = false, Message = "start_extraction_workers.py not found" });
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "python",
+                Arguments = $"\"{scriptPath}\"",
+                WorkingDirectory = extractionDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            psi.Environment["DATABASE_URL"] = GetPythonDbUrl();
+            Process.Start(psi);
+            return Ok(new LaunchResult { Success = true, Message = "Extraction worker process started in background" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new LaunchResult { Success = false, Message = $"Failed to start process: {ex.Message}" });
+        }
+    }
+
+    [HttpPost("launch/start-embedding-server")]
+    public ActionResult<LaunchResult> StartEmbeddingServer()
+    {
+        var extractionDir = FindExtractionDir();
+        if (extractionDir == null)
+            return BadRequest(new LaunchResult { Success = false, Message = "epstein_extraction directory not found" });
+
+        var scriptPath = Path.Combine(extractionDir, "start_embedding_server.py");
+        if (!System.IO.File.Exists(scriptPath))
+            return BadRequest(new LaunchResult { Success = false, Message = "start_embedding_server.py not found" });
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "python",
+                Arguments = $"\"{scriptPath}\"",
+                WorkingDirectory = extractionDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            Process.Start(psi);
+            return Ok(new LaunchResult { Success = true, Message = "Embedding server process started in background" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new LaunchResult { Success = false, Message = $"Failed to start process: {ex.Message}" });
+        }
+    }
+
+    private string? FindExtractionDir()
+    {
+        var dir = new DirectoryInfo(_env.ContentRootPath);
+        while (dir != null)
+        {
+            var candidate = Path.Combine(dir.FullName, "epstein_extraction");
+            if (System.IO.Directory.Exists(candidate)) return candidate;
+            dir = dir.Parent;
+        }
+        return null;
+    }
+
+    private string GetPythonDbUrl()
+    {
+        var builder = new NpgsqlConnectionStringBuilder(_connectionString);
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(builder.Host)) parts.Add($"host={builder.Host}");
+        if (builder.Port > 0 && builder.Port != 5432) parts.Add($"port={builder.Port}");
+        if (!string.IsNullOrEmpty(builder.Database)) parts.Add($"dbname={builder.Database}");
+        if (!string.IsNullOrEmpty(builder.Username)) parts.Add($"user={builder.Username}");
+        if (!string.IsNullOrEmpty(builder.Password)) parts.Add($"password={builder.Password}");
+        return string.Join(" ", parts);
+    }
+
     private async Task<TranscriptionStatus> GetTranscriptionStatusAsync()
     {
         var status = new TranscriptionStatus();
@@ -642,4 +816,17 @@ public class ThroughputBucket
     public DateTime Timestamp { get; set; }
     public string Hostname { get; set; } = "";
     public long Completed { get; set; }
+}
+
+public class LaunchStatus
+{
+    public bool ExtractionDirFound { get; set; }
+    public Dictionary<string, bool> Scripts { get; set; } = new();
+}
+
+public class LaunchResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public int JobsSubmitted { get; set; }
 }

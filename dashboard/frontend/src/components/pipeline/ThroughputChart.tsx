@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { select } from 'd3-selection';
-import { scaleTime, scaleLinear } from 'd3-scale';
+import { scaleTime, scaleLinear, type ScaleTime } from 'd3-scale';
 import { axisBottom, axisLeft } from 'd3-axis';
 import { line, curveMonotoneX } from 'd3-shape';
 
@@ -50,7 +50,7 @@ export function ThroughputChart({ data, height = 280 }: ThroughputChartProps) {
   const handleMouseMove = useCallback(
     (
       event: MouseEvent,
-      xScale: d3.ScaleTime<number, number>,
+      xScale: ScaleTime<number, number>,
       allTimestamps: Date[],
       seriesMap: Map<string, Map<number, number>>,
       hostnames: string[],
