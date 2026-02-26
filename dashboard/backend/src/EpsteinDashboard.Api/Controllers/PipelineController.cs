@@ -261,6 +261,45 @@ public class PipelineController : ControllerBase
         return Ok(kpis);
     }
 
+    [HttpGet("throughput-history")]
+    public async Task<ActionResult<List<ThroughputBucket>>> GetThroughputHistory(
+        [FromQuery] int minutes = 30, [FromQuery] int bucketSeconds = 60)
+    {
+        minutes = Math.Clamp(minutes, 1, 1440);
+        bucketSeconds = Math.Clamp(bucketSeconds, 10, 3600);
+
+        var buckets = new List<ThroughputBucket>();
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        await using var cmd = new NpgsqlCommand(@"
+            SELECT
+              date_trunc('second', completed_at) - (EXTRACT(EPOCH FROM completed_at)::int % @bucket) * INTERVAL '1 second' AS bucket,
+              SPLIT_PART(claimed_by, ':', 1) AS hostname,
+              COUNT(*) AS completed
+            FROM job_pool
+            WHERE status = 'completed'
+              AND completed_at IS NOT NULL
+              AND completed_at > NOW() - @minutes * INTERVAL '1 minute'
+            GROUP BY bucket, hostname
+            ORDER BY bucket", conn);
+        cmd.Parameters.AddWithValue("bucket", bucketSeconds);
+        cmd.Parameters.AddWithValue("minutes", minutes);
+
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            buckets.Add(new ThroughputBucket
+            {
+                Timestamp = reader.GetDateTime(0),
+                Hostname = reader.GetString(1),
+                Completed = reader.GetInt64(2),
+            });
+        }
+
+        return Ok(buckets);
+    }
+
     [HttpPost("nodes/{hostname}/command")]
     public async Task<ActionResult> SendNodeCommand(string hostname, [FromBody] CommandRequest request)
     {
@@ -494,4 +533,11 @@ public class QueueEta
 public class CommandRequest
 {
     public string Command { get; set; } = "";
+}
+
+public class ThroughputBucket
+{
+    public DateTime Timestamp { get; set; }
+    public string Hostname { get; set; } = "";
+    public long Completed { get; set; }
 }

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { apiGet, apiPost } from '@/api/client';
 import { cn } from '@/lib/utils';
+import { ThroughputChart, type ThroughputBucket } from '@/components/pipeline/ThroughputChart';
 
 // --- Existing interfaces ---
 
@@ -112,6 +113,8 @@ const pipelineApi = {
   getNodes: () => apiGet<NodeInfo[]>('/pipeline/nodes'),
   getJobs: () => apiGet<JobsResponse>('/pipeline/jobs'),
   getKpis: () => apiGet<PipelineKpis>('/pipeline/kpis'),
+  getThroughputHistory: (minutes = 30, bucketSeconds = 60) =>
+    apiGet<ThroughputBucket[]>(`/pipeline/throughput-history?minutes=${minutes}&bucketSeconds=${bucketSeconds}`),
   sendNodeCommand: (hostname: string, command: string) =>
     apiPost<{ success: boolean; message: string }>(`/pipeline/nodes/${encodeURIComponent(hostname)}/command`, { command }),
   sendWorkerCommand: (workerId: string, command: string) =>
@@ -237,11 +240,12 @@ const tabs: { key: TabKey; label: string; icon: typeof Activity }[] = [
 
 // --- Overview Tab ---
 
-function OverviewTab({ status, kpis, jobs, nodes }: {
+function OverviewTab({ status, kpis, jobs, nodes, throughputHistory }: {
   status: PipelineStatus | undefined;
   kpis: PipelineKpis | undefined;
   jobs: JobsResponse | undefined;
   nodes: NodeInfo[] | undefined;
+  throughputHistory: ThroughputBucket[] | undefined;
 }) {
   const onlineNodes = nodes?.filter(n => n.isOnline).length ?? 0;
   const totalNodes = nodes?.length ?? 0;
@@ -296,6 +300,9 @@ function OverviewTab({ status, kpis, jobs, nodes }: {
           </div>
         )}
       </div>
+
+      {/* Throughput Chart */}
+      <ThroughputChart data={throughputHistory} />
 
       {/* Document Stats */}
       {status && (
@@ -644,11 +651,18 @@ export function PipelinePage() {
     refetchInterval: 5000,
   });
 
+  const { data: throughputHistory, refetch: refetchThroughput } = useQuery({
+    queryKey: ['pipeline-throughput-history'],
+    queryFn: () => pipelineApi.getThroughputHistory(30, 60),
+    refetchInterval: 10000,
+  });
+
   const refetchAll = () => {
     refetchStatus();
     refetchNodes();
     refetchJobs();
     refetchKpis();
+    refetchThroughput();
   };
 
   const errorCount = jobs?.errors.length ?? 0;
@@ -707,7 +721,7 @@ export function PipelinePage() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <OverviewTab status={status} kpis={kpis} jobs={jobs} nodes={nodes} />
+        <OverviewTab status={status} kpis={kpis} jobs={jobs} nodes={nodes} throughputHistory={throughputHistory} />
       )}
       {activeTab === 'nodes' && (
         <NodesTab nodes={nodes} />
