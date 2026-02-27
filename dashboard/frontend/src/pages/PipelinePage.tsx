@@ -153,6 +153,7 @@ const pipelineApi = {
   submitChunkEmbed: () => apiPost<LaunchResult>('/pipeline/launch/submit-chunk-embed', {}),
   startWorkers: () => apiPost<LaunchResult>('/pipeline/launch/start-workers', {}),
   startEmbeddingServer: () => apiPost<LaunchResult>('/pipeline/launch/start-embedding-server', {}),
+  rebuildVectorIndex: () => apiPost<LaunchResult>('/pipeline/launch/rebuild-vector-index', {}),
 };
 
 // --- Utility functions ---
@@ -916,7 +917,7 @@ Reference \`extraction_handler.py\` for the R2 boto3 pattern and \`submit_extrac
     id: 'workers',
     enabled: true,
     title: 'Start Extraction Workers',
-    description: 'Launch the auto-scaling extraction worker process on this machine. It spins up workers based on available CPU/memory and claims extract_text jobs from the queue.',
+    description: 'Launch the auto-scaling worker process on this machine. Workers claim both extract_text AND chunk_embed jobs — so this single step covers the full text-extraction and embedding pipeline.',
     actionLabel: 'Start Workers',
   },
   {
@@ -953,11 +954,19 @@ Follow the patterns in \`extraction_handler.py\` and \`submit_extraction_jobs.py
     id: 'chunk',
     enabled: true,
     title: 'Submit Chunk & Embed Jobs',
-    description: 'Queue chunk_embed jobs for documents that have text but no vector embeddings. Workers split text into chunks and call the embedding server.',
+    description: 'Queue chunk_embed jobs for documents that have text but no vector embeddings. Workers split text into chunks and call the embedding server to generate vectors stored in PostgreSQL (pgvector).',
     actionLabel: 'Submit Jobs',
   },
   {
     step: 7,
+    id: 'vectorindex',
+    enabled: true,
+    title: 'Rebuild Vector Search Index',
+    description: 'Create or rebuild the IVFFlat index on the document_chunks.embedding_vector column. Required for fast similarity search in RAG/chat — without it every query does a full table scan.',
+    actionLabel: 'Rebuild Index',
+  },
+  {
+    step: 8,
     id: 'ner',
     enabled: false,
     title: 'Named Entity Recognition',
@@ -976,7 +985,7 @@ Add \`submit_ner_jobs.py\` targeting documents with full_text but no rows in doc
 Follow the patterns in \`chunk_embed_handler.py\` and \`submit_chunk_embed_jobs.py\`.`,
   },
   {
-    step: 8,
+    step: 9,
     id: 'financial',
     enabled: false,
     title: 'Financial Data Extraction',
@@ -996,7 +1005,7 @@ Add \`submit_financial_jobs.py\` targeting documents with full_text but no rows 
 Reference the \`chunk_embed_handler.py\` pattern.`,
   },
   {
-    step: 9,
+    step: 10,
     id: 'vision',
     enabled: false,
     title: 'Vision Analysis',
@@ -1074,6 +1083,11 @@ function LaunchTab() {
     onSuccess: makeOnSuccess('embed'),
     onError: makeOnError('embed'),
   });
+  const rebuildVectorMutation = useMutation({
+    mutationFn: pipelineApi.rebuildVectorIndex,
+    onSuccess: makeOnSuccess('vectorindex'),
+    onError: makeOnError('vectorindex'),
+  });
 
   // Map step ID → mutation for enabled steps
   const mutationMap: Record<string, ReturnType<typeof useMutation<LaunchResult, Error, void>>> = {
@@ -1081,6 +1095,7 @@ function LaunchTab() {
     workers: startWorkersMutation,
     embed: startEmbedMutation,
     chunk: submitChunkMutation,
+    vectorindex: rebuildVectorMutation,
   };
 
   const scriptKeyMap: Record<string, string> = {
@@ -1088,6 +1103,7 @@ function LaunchTab() {
     workers: 'startWorkers',
     embed: 'startEmbeddingServer',
     chunk: 'submitChunkEmbed',
+    // vectorindex has no script file — always available (falls through to ?? true)
   };
 
   const isLastStep = (i: number) => i === PIPELINE_STEPS.length - 1;

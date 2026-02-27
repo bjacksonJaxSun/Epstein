@@ -556,6 +556,46 @@ public class PipelineController : ControllerBase
         }
     }
 
+    [HttpPost("launch/rebuild-vector-index")]
+    public async Task<ActionResult<LaunchResult>> RebuildVectorIndex()
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+
+        // Count embedded chunks
+        long embeddedChunks = 0;
+        await using (var countCmd = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM document_chunks WHERE embedding_vector IS NOT NULL", conn))
+            embeddedChunks = Convert.ToInt64(await countCmd.ExecuteScalarAsync() ?? 0);
+
+        // Check if index already exists
+        bool indexExists = false;
+        await using (var checkCmd = new NpgsqlCommand(@"
+            SELECT COUNT(*) FROM pg_indexes
+            WHERE tablename = 'document_chunks'
+              AND indexname = 'idx_document_chunks_embedding'", conn))
+            indexExists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync() ?? 0) > 0;
+
+        string sql;
+        string msg;
+        if (indexExists)
+        {
+            sql = "REINDEX INDEX CONCURRENTLY idx_document_chunks_embedding";
+            msg = $"Rebuilt HNSW vector index on {embeddedChunks:N0} embedded chunks";
+        }
+        else
+        {
+            sql = "CREATE INDEX CONCURRENTLY idx_document_chunks_embedding ON document_chunks USING hnsw (embedding_vector vector_cosine_ops) WITH (m=16, ef_construction=64)";
+            msg = $"Created HNSW vector index on {embeddedChunks:N0} embedded chunks";
+        }
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.CommandTimeout = 3600; // index rebuild can take minutes
+        await cmd.ExecuteNonQueryAsync();
+
+        return Ok(new LaunchResult { Success = true, Message = msg });
+    }
+
     [HttpPost("launch/start-embedding-server")]
     public ActionResult<LaunchResult> StartEmbeddingServer()
     {
