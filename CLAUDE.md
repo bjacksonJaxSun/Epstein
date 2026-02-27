@@ -13,102 +13,25 @@ EpsteinDownloader/
 │   │       ├── EpsteinDashboard.Application/  # Application services
 │   │       ├── EpsteinDashboard.Core/         # Domain entities
 │   │       └── EpsteinDashboard.Infrastructure/ # Data access
-│   ├── frontend/          # React/TypeScript frontend
-│   ├── deploy-lynnox.sh   # Full deployment script
-│   └── epstein-dashboard.service  # Systemd service file
+│   └── frontend/          # React/TypeScript frontend
 └── epstein_extraction/    # Python extraction scripts
 ```
 
-## Azure VM Deployment (Lynnox)
-
-### Connection Details
-- **VM IP:** 20.25.96.123
-- **Username:** azureuser
-- **Dashboard Path:** /data/dashboard
-- **Backend URL:** http://20.25.96.123:5000
-
-### Quick Deployment Commands
-
-**Full deployment (build and restart):**
-```bash
-ssh azureuser@20.25.96.123 "cd /data/dashboard && ./deploy-lynnox.sh"
-```
-
-**Restart only (no rebuild):**
-```bash
-ssh azureuser@20.25.96.123 "cd /data/dashboard && ./deploy-lynnox.sh --restart"
-```
-
-**Frontend only:**
-```bash
-ssh azureuser@20.25.96.123 "cd /data/dashboard && ./deploy-lynnox.sh --frontend"
-```
-
-**Backend only:**
-```bash
-ssh azureuser@20.25.96.123 "cd /data/dashboard && ./deploy-lynnox.sh --backend"
-```
-
-### Syncing Code to VM
-
-**Sync entire dashboard:**
-```bash
-# First, clean permissions on remote
-ssh azureuser@20.25.96.123 "sudo chown -R azureuser:azureuser /data/dashboard"
-
-# Sync backend source (not bin/obj)
-scp -r dashboard/backend/src/* azureuser@20.25.96.123:/data/dashboard/backend/src/
-
-# Sync frontend source
-scp -r dashboard/frontend/src/* azureuser@20.25.96.123:/data/dashboard/frontend/src/
-
-# Sync config files
-scp dashboard/frontend/package.json azureuser@20.25.96.123:/data/dashboard/frontend/
-scp dashboard/frontend/vite.config.ts azureuser@20.25.96.123:/data/dashboard/frontend/
-```
-
-### Service Management
-
-**View logs:**
-```bash
-ssh azureuser@20.25.96.123 "tail -f /var/log/epstein-dashboard.log"
-```
-
-**Check status:**
-```bash
-ssh azureuser@20.25.96.123 "ps aux | grep EpsteinDashboard"
-```
-
-**Health check:**
-```bash
-ssh azureuser@20.25.96.123 "curl http://localhost:5000/health"
-```
-
-**Stop service:**
-```bash
-ssh azureuser@20.25.96.123 "pkill -f 'EpsteinDashboard.Api.dll'"
-```
-
-### Database
+## Database
 
 **Connection String:** `Host=localhost;Database=epstein_documents;Username=epstein_user;Password=epstein_secure_pw_2024`
 
 **Check database:**
-```bash
-ssh azureuser@20.25.96.123 "PGPASSWORD=epstein_secure_pw_2024 psql -h localhost -U epstein_user -d epstein_documents -c 'SELECT COUNT(*) FROM documents;'"
+```powershell
+$env:PGPASSWORD='epstein_secure_pw_2024'; psql -h localhost -U epstein_user -d epstein_documents -c 'SELECT COUNT(*) FROM documents;'
 ```
 
-**Check auth tables:**
-```bash
-ssh azureuser@20.25.96.123 "PGPASSWORD=epstein_secure_pw_2024 psql -h localhost -U epstein_user -d epstein_documents -c \"SELECT tablename FROM pg_tables WHERE tablename IN ('users', 'roles', 'user_roles', 'refresh_tokens');\""
-```
-
-### Default Admin Credentials
+## Default Admin Credentials
 - **Username:** admin
 - **Password:** ChangeMe123!
 - **Email:** admin@epsteindashboard.local
 
-### Authentication System
+## Authentication System
 
 The dashboard uses JWT-based authentication with role-based access control:
 
@@ -119,22 +42,7 @@ The dashboard uses JWT-based authentication with role-based access control:
 | premium  | 2          | AI Insights, advanced analysis features   |
 | admin    | 3          | Full system access, user management       |
 
-### Common Issues
-
-**Permission denied during build:**
-```bash
-ssh azureuser@20.25.96.123 "sudo chown -R azureuser:azureuser /data/dashboard && rm -rf /data/dashboard/backend/src/*/bin /data/dashboard/backend/src/*/obj"
-```
-
-**Service won't start:**
-1. Check if port 5000 is already in use: `ss -tlnp | grep 5000`
-2. Kill existing process: `pkill -f 'dotnet'`
-3. Check logs: `tail -100 /var/log/epstein-dashboard.log`
-
-**Frontend build fails with TypeScript errors:**
-Check for missing types or unused imports. Run `npm run build` locally first to catch errors.
-
-### API Endpoints
+## API Endpoints
 
 - **Health:** GET /health
 - **Swagger:** GET /swagger

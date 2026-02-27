@@ -268,7 +268,7 @@ function StatCard({
 type SortCol = 'jobType' | 'pending' | 'paused' | 'stopped' | 'running' | 'completed' | 'failed' | 'total' | 'rate' | 'eta' | 'pct';
 
 function SortHeader({
-  col, label, current, dir, onSort, align = 'right',
+  col, label, current, dir, onSort, align = 'right', title,
 }: {
   col: SortCol;
   label: string;
@@ -276,10 +276,12 @@ function SortHeader({
   dir: 'asc' | 'desc';
   onSort: (col: SortCol) => void;
   align?: 'left' | 'right';
+  title?: string;
 }) {
   const active = col === current;
   return (
     <th
+      title={title}
       className="px-4 py-3 text-text-tertiary font-medium cursor-pointer select-none hover:text-text-secondary group whitespace-nowrap"
       onClick={() => onSort(col)}
     >
@@ -675,7 +677,7 @@ function JobQueuesTab({ jobs, kpis }: { jobs: JobsResponse | undefined; kpis: Pi
                 <SortHeader col="pending"   label="Pending"   current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortHeader col="paused"    label="Paused"    current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortHeader col="stopped"   label="Stopped"   current={sortCol} dir={sortDir} onSort={handleSort} />
-                <SortHeader col="running"   label="Running"   current={sortCol} dir={sortDir} onSort={handleSort} />
+                <SortHeader col="running"   label="Active"    title="Includes running + claimed jobs" current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortHeader col="completed" label="Completed" current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortHeader col="failed"    label="Failed"    current={sortCol} dir={sortDir} onSort={handleSort} />
                 <SortHeader col="total"     label="Total"     current={sortCol} dir={sortDir} onSort={handleSort} />

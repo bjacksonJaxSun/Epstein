@@ -92,7 +92,7 @@ public class PipelineController : ControllerBase
                 Hostname = g.Key,
                 IsOnline = g.Any(w => w.SecondsSinceHeartbeat < 60),
                 TotalWorkers = g.Count(),
-                ActiveJobs = g.Sum(w => w.ActiveJobs),
+                ActiveJobs = g.Where(w => w.SecondsSinceHeartbeat < 60).Sum(w => w.ActiveJobs),
                 CodeVersion = g.FirstOrDefault(w => w.CodeVersion != null)?.CodeVersion,
                 Workers = g.ToList(),
             })
