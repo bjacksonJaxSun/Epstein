@@ -455,6 +455,7 @@ public class PipelineController : ControllerBase
                 ["submitExtractText"] = Exists("submit_extraction_jobs.py"),
                 ["submitChunkEmbed"] = Exists("submit_chunk_embed_jobs.py"),
                 ["startWorkers"] = Exists("start_extraction_workers.py"),
+                ["startChunkWorkers"] = Exists("start_extraction_workers.py"),
                 ["startEmbeddingServer"] = Exists("start_embedding_server.py"),
             }
         });
@@ -541,7 +542,7 @@ public class PipelineController : ControllerBase
             var psi = new ProcessStartInfo
             {
                 FileName = "python",
-                Arguments = $"\"{scriptPath}\"",
+                Arguments = $"\"{scriptPath}\" --job-types extract_text",
                 WorkingDirectory = extractionDir,
                 UseShellExecute = false,
                 CreateNoWindow = true,
@@ -554,6 +555,99 @@ public class PipelineController : ControllerBase
         {
             return StatusCode(500, new LaunchResult { Success = false, Message = $"Failed to start process: {ex.Message}" });
         }
+    }
+
+    [HttpPost("launch/start-chunk-workers")]
+    public async Task<ActionResult<LaunchResult>> StartChunkWorkers()
+    {
+        var extractionDir = FindExtractionDir();
+        if (extractionDir == null)
+            return BadRequest(new LaunchResult { Success = false, Message = "epstein_extraction directory not found" });
+
+        var launcherScript = Path.Combine(extractionDir, "start_chunk_workers.py");
+        if (!System.IO.File.Exists(launcherScript))
+            return BadRequest(new LaunchResult { Success = false, Message = "start_chunk_workers.py not found" });
+
+        var dbUrl = GetPythonDbUrl();
+        var localPids = new List<int>();
+        int remoteJobsSubmitted = 0;
+
+        // 1. Start workers locally
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "python",
+                Arguments = $"\"{launcherScript}\" --db-url \"{dbUrl}\"",
+                WorkingDirectory = extractionDir,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            };
+            var proc = Process.Start(psi);
+            if (proc != null) localPids.Add(proc.Id);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new LaunchResult { Success = false, Message = $"Failed to start local process: {ex.Message}" });
+        }
+
+        // 2. Submit general jobs so remote machines start their own chunk workers
+        try
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+
+            // Find distinct remote hostnames with general workers (excluding this machine)
+            var localHost = System.Net.Dns.GetHostName();
+            await using var hostCmd = new NpgsqlCommand(@"
+                SELECT DISTINCT SPLIT_PART(worker_id, ':', 1) as host
+                FROM worker_heartbeat
+                WHERE 'general' = ANY(job_types)
+                  AND last_heartbeat > NOW() - INTERVAL '120 seconds'
+                  AND SPLIT_PART(worker_id, ':', 1) != @local", conn);
+            hostCmd.Parameters.AddWithValue("local", localHost);
+
+            var remoteHosts = new List<string>();
+            await using (var reader = await hostCmd.ExecuteReaderAsync())
+                while (await reader.ReadAsync())
+                    remoteHosts.Add(reader.GetString(0));
+
+            foreach (var host in remoteHosts)
+            {
+                // Use Start-Process to spawn workers detached — pooled_job_worker.py already exists on all machines
+                var psCmd = $"1..3 | ForEach-Object {{ Start-Process python -ArgumentList 'services\\pooled_job_worker.py','--job-types','chunk_embed','--max-concurrent','2','--batch-size','2','--db-url','{dbUrl}' -WindowStyle Hidden }}";
+                var payload = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    action = "powershell",
+                    command = psCmd,
+                    timeout = 30
+                });
+
+                await using var insertCmd = new NpgsqlCommand(@"
+                    INSERT INTO job_pool (job_type, payload, status, priority)
+                    VALUES ('general', @payload::jsonb, 'pending', 10)", conn);
+                insertCmd.Parameters.AddWithValue("payload", payload);
+                await insertCmd.ExecuteNonQueryAsync();
+                remoteJobsSubmitted++;
+            }
+        }
+        catch (Exception ex)
+        {
+            // Remote submission failed but local started — partial success
+            return Ok(new LaunchResult
+            {
+                Success = true,
+                Message = $"Local workers started (PID {string.Join(", ", localPids)}). Remote submission failed: {ex.Message}"
+            });
+        }
+
+        var msg = $"Local launcher started (PID {string.Join(", ", localPids)})";
+        if (remoteJobsSubmitted > 0)
+            msg += $"; submitted start jobs to {remoteJobsSubmitted} remote machine(s)";
+        else
+            msg += "; no remote general workers found";
+
+        return Ok(new LaunchResult { Success = true, Message = msg });
     }
 
     [HttpPost("launch/rebuild-vector-index")]

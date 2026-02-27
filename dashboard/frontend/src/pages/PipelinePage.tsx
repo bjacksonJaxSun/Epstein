@@ -152,6 +152,7 @@ const pipelineApi = {
   submitExtractText: () => apiPost<LaunchResult>('/pipeline/launch/submit-extract-text', {}),
   submitChunkEmbed: () => apiPost<LaunchResult>('/pipeline/launch/submit-chunk-embed', {}),
   startWorkers: () => apiPost<LaunchResult>('/pipeline/launch/start-workers', {}),
+  startChunkWorkers: () => apiPost<LaunchResult>('/pipeline/launch/start-chunk-workers', {}),
   startEmbeddingServer: () => apiPost<LaunchResult>('/pipeline/launch/start-embedding-server', {}),
   rebuildVectorIndex: () => apiPost<LaunchResult>('/pipeline/launch/rebuild-vector-index', {}),
 };
@@ -951,6 +952,14 @@ Follow the patterns in \`extraction_handler.py\` and \`submit_extraction_jobs.py
   },
   {
     step: 6,
+    id: 'chunkworkers',
+    enabled: true,
+    title: 'Start Chunk & Embed Workers',
+    description: 'Launch auto-scaling workers specifically for chunk_embed jobs on this machine. These workers call the embedding server to split text into chunks and generate pgvector embeddings.',
+    actionLabel: 'Start Workers',
+  },
+  {
+    step: 7,
     id: 'chunk',
     enabled: true,
     title: 'Submit Chunk & Embed Jobs',
@@ -958,7 +967,7 @@ Follow the patterns in \`extraction_handler.py\` and \`submit_extraction_jobs.py
     actionLabel: 'Submit Jobs',
   },
   {
-    step: 7,
+    step: 8,
     id: 'vectorindex',
     enabled: true,
     title: 'Rebuild Vector Search Index',
@@ -966,7 +975,7 @@ Follow the patterns in \`extraction_handler.py\` and \`submit_extraction_jobs.py
     actionLabel: 'Rebuild Index',
   },
   {
-    step: 8,
+    step: 9,
     id: 'ner',
     enabled: false,
     title: 'Named Entity Recognition',
@@ -985,7 +994,7 @@ Add \`submit_ner_jobs.py\` targeting documents with full_text but no rows in doc
 Follow the patterns in \`chunk_embed_handler.py\` and \`submit_chunk_embed_jobs.py\`.`,
   },
   {
-    step: 9,
+    step: 10,
     id: 'financial',
     enabled: false,
     title: 'Financial Data Extraction',
@@ -1005,7 +1014,7 @@ Add \`submit_financial_jobs.py\` targeting documents with full_text but no rows 
 Reference the \`chunk_embed_handler.py\` pattern.`,
   },
   {
-    step: 10,
+    step: 11,
     id: 'vision',
     enabled: false,
     title: 'Vision Analysis',
@@ -1078,6 +1087,11 @@ function LaunchTab() {
     onSuccess: makeOnSuccess('workers'),
     onError: makeOnError('workers'),
   });
+  const startChunkWorkersMutation = useMutation({
+    mutationFn: pipelineApi.startChunkWorkers,
+    onSuccess: makeOnSuccess('chunkworkers'),
+    onError: makeOnError('chunkworkers'),
+  });
   const startEmbedMutation = useMutation({
     mutationFn: pipelineApi.startEmbeddingServer,
     onSuccess: makeOnSuccess('embed'),
@@ -1093,6 +1107,7 @@ function LaunchTab() {
   const mutationMap: Record<string, ReturnType<typeof useMutation<LaunchResult, Error, void>>> = {
     extract: submitExtractMutation,
     workers: startWorkersMutation,
+    chunkworkers: startChunkWorkersMutation,
     embed: startEmbedMutation,
     chunk: submitChunkMutation,
     vectorindex: rebuildVectorMutation,
@@ -1101,6 +1116,7 @@ function LaunchTab() {
   const scriptKeyMap: Record<string, string> = {
     extract: 'submitExtractText',
     workers: 'startWorkers',
+    chunkworkers: 'startChunkWorkers',
     embed: 'startEmbeddingServer',
     chunk: 'submitChunkEmbed',
     // vectorindex has no script file — always available (falls through to ?? true)

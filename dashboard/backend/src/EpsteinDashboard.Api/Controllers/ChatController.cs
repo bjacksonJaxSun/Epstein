@@ -37,6 +37,7 @@ public class ChatController : ControllerBase
         public string Message { get; set; } = string.Empty;
         public List<ChatHistoryItem>? History { get; set; }
         public int MaxChunks { get; set; } = 8;
+        public double MinRelevanceScore { get; set; } = 0.25;
     }
 
     public class ChatHistoryItem
@@ -99,10 +100,12 @@ public class ChatController : ControllerBase
                 };
 
                 var searchResult = await _chunkSearchService.SearchChunksAsync(searchRequest, cancellationToken);
-                chunks = searchResult.Items.ToList();
+                chunks = searchResult.Items
+                    .Where(c => c.RelevanceScore >= request.MinRelevanceScore)
+                    .ToList();
 
-                _logger.LogInformation("Found {Count} semantically relevant chunks for query: {Query}",
-                    chunks.Count, request.Message);
+                _logger.LogInformation("Found {Count} relevant chunks (of {Total} searched, min score {MinScore}) for query: {Query}",
+                    chunks.Count, searchResult.Items.Count(), request.MinRelevanceScore, request.Message);
             }
             catch (Exception ex)
             {

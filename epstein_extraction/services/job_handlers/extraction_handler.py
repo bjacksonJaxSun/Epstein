@@ -16,6 +16,8 @@ Example payload:
 
 import os
 import time
+import json
+import socket
 import tempfile
 import logging
 from pathlib import Path
@@ -157,6 +159,13 @@ def handle_extraction_job(payload: dict) -> JobResult:
             f"method={extraction_method}, {duration_ms}ms"
         )
 
+        # Auto-chain: submit chunk_embed job for documents with enough text
+        if extraction_status == 'completed' and text_length > 50:
+            try:
+                _submit_chunk_embed_job(db_url, document_id)
+            except Exception as e:
+                logger.warning(f"[{document_id}] Failed to auto-submit chunk_embed: {e}")
+
         return JobResult(
             success=True,
             output=f"Document {document_id}: {extraction_status} "
@@ -240,4 +249,19 @@ def _update_document(
     with psycopg2.connect(db_url) as conn:
         with conn.cursor() as cur:
             cur.execute(sql, params)
+        conn.commit()
+
+
+def _submit_chunk_embed_job(db_url: str, document_id: int):
+    """Submit a chunk_embed job for a successfully extracted document."""
+    payload = json.dumps({
+        "action": "chunk_embed",
+        "document_id": document_id,
+    })
+    with psycopg2.connect(db_url) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT submit_job(%s, %s, %s, %s, %s)",
+                ('chunk_embed', payload, 0, 120, socket.gethostname())
+            )
         conn.commit()
