@@ -136,6 +136,8 @@ const pipelineApi = {
     apiGet<ThroughputBucket[]>(`/pipeline/throughput-history?minutes=${minutes}&bucketSeconds=${bucketSeconds}`),
   sendNodeCommand: (hostname: string, command: string) =>
     apiPost<{ success: boolean; message: string }>(`/pipeline/nodes/${encodeURIComponent(hostname)}/command`, { command }),
+  startNodeWorkers: (hostname: string, count: number, jobType: string) =>
+    apiPost<LaunchResult>(`/pipeline/nodes/${encodeURIComponent(hostname)}/start-workers`, { count, jobType }),
   sendWorkerCommand: (workerId: string, command: string) =>
     apiPost<{ success: boolean; message: string }>(`/pipeline/workers/${encodeURIComponent(workerId)}/command`, { command }),
   pauseJobType: (jobType: string) =>
@@ -460,6 +462,9 @@ function OverviewTab({ status, kpis, jobs, nodes, throughputHistory }: {
 
 function NodeCard({ node }: { node: NodeInfo }) {
   const [expanded, setExpanded] = useState(true);
+  const [workerCount, setWorkerCount] = useState(3);
+  const [jobType, setJobType] = useState('chunk_embed');
+  const [startResult, setStartResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const queryClient = useQueryClient();
 
   const sendCommand = useMutation({
@@ -478,6 +483,19 @@ function NodeCard({ node }: { node: NodeInfo }) {
     },
   });
 
+  const startWorkers = useMutation({
+    mutationFn: () => pipelineApi.startNodeWorkers(node.hostname, workerCount, jobType),
+    onSuccess: (data) => {
+      setStartResult({ ok: data.success, msg: data.message });
+      queryClient.invalidateQueries({ queryKey: ['pipeline-nodes'] });
+      setTimeout(() => setStartResult(null), 5000);
+    },
+    onError: (err: Error) => {
+      setStartResult({ ok: false, msg: err.message });
+      setTimeout(() => setStartResult(null), 5000);
+    },
+  });
+
   const throughput = node.workers.reduce((sum, w) => sum + w.activeJobs, 0);
 
   return (
@@ -492,6 +510,37 @@ function NodeCard({ node }: { node: NodeInfo }) {
           <h3 className="font-semibold text-text-primary">{node.hostname}</h3>
         </div>
         <div className="flex items-center gap-2">
+          {/* Start workers inline control */}
+          <div className="flex items-center gap-1 border border-border-subtle rounded-lg px-2 py-1">
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={workerCount}
+              onChange={e => setWorkerCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+              className="w-8 text-center text-xs bg-transparent text-text-primary focus:outline-none"
+            />
+            <select
+              value={jobType}
+              onChange={e => setJobType(e.target.value)}
+              className="text-xs bg-transparent text-text-secondary focus:outline-none cursor-pointer"
+            >
+              <option value="chunk_embed">chunk_embed</option>
+              <option value="extract_text">extract_text</option>
+              <option value="general">general</option>
+            </select>
+            <button
+              onClick={() => startWorkers.mutate()}
+              disabled={startWorkers.isPending}
+              className="p-0.5 rounded hover:bg-surface-overlay text-text-tertiary hover:text-green-400 transition-colors"
+              title={`Start ${workerCount} ${jobType} workers on ${node.hostname}`}
+            >
+              {startWorkers.isPending
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Play className="h-3.5 w-3.5" />}
+            </button>
+          </div>
+          <div className="w-px h-4 bg-border-subtle" />
           <button
             onClick={() => { if (confirm(`Restart all workers on ${node.hostname}?`)) sendCommand.mutate({ hostname: node.hostname, command: 'restart' }); }}
             className="p-1.5 rounded hover:bg-surface-overlay text-text-tertiary hover:text-amber-400 transition-colors"
@@ -508,6 +557,16 @@ function NodeCard({ node }: { node: NodeInfo }) {
           </button>
         </div>
       </div>
+
+      {/* Start workers result banner */}
+      {startResult && (
+        <div className={cn(
+          'px-4 py-1.5 text-xs',
+          startResult.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+        )}>
+          {startResult.msg}
+        </div>
+      )}
 
       {/* Node summary bar */}
       <div className="px-4 pb-3 flex items-center gap-4 text-xs text-text-tertiary">

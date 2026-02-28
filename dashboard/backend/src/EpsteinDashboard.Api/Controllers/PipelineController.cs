@@ -403,6 +403,64 @@ public class PipelineController : ControllerBase
         return Ok(buckets);
     }
 
+    [HttpPost("nodes/{hostname}/start-workers")]
+    public async Task<ActionResult<LaunchResult>> StartNodeWorkers(string hostname, [FromBody] StartWorkersRequest request)
+    {
+        var count = Math.Clamp(request.Count, 1, 20);
+        var jobType = string.IsNullOrWhiteSpace(request.JobType) ? "chunk_embed" : request.JobType;
+        var dbUrl = GetPythonDbUrl();
+        var localHost = System.Net.Dns.GetHostName();
+
+        if (hostname.Equals(localHost, StringComparison.OrdinalIgnoreCase))
+        {
+            var extractionDir = FindExtractionDir();
+            if (extractionDir == null)
+                return BadRequest(new LaunchResult { Success = false, Message = "epstein_extraction directory not found" });
+
+            var workerScript = Path.Combine(extractionDir, "services", "pooled_job_worker.py");
+            if (!System.IO.File.Exists(workerScript))
+                return BadRequest(new LaunchResult { Success = false, Message = "pooled_job_worker.py not found" });
+
+            var pids = new List<int>();
+            for (int i = 0; i < count; i++)
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "python",
+                    Arguments = $"\"{workerScript}\" --job-types {jobType} --max-concurrent 1 --db-url \"{dbUrl}\"",
+                    WorkingDirectory = extractionDir,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                var proc = Process.Start(psi);
+                if (proc != null) pids.Add(proc.Id);
+            }
+            return Ok(new LaunchResult { Success = true, Message = $"Started {pids.Count} {jobType} worker(s) locally (PIDs: {string.Join(", ", pids)})" });
+        }
+        else
+        {
+            // Remote: submit a general job the target machine's general worker will pick up and execute
+            var psCmd = $"1..{count} | ForEach-Object {{ Start-Process python -ArgumentList 'services\\pooled_job_worker.py','--job-types','{jobType}','--max-concurrent','1','--db-url','{dbUrl}' -WindowStyle Hidden }}";
+            var payload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                action = "powershell",
+                command = psCmd,
+                timeout = 30,
+                target_host = hostname
+            });
+
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                INSERT INTO job_pool (job_type, payload, status, priority)
+                VALUES ('general', @payload::jsonb, 'pending', 10)", conn);
+            cmd.Parameters.AddWithValue("payload", payload);
+            await cmd.ExecuteNonQueryAsync();
+
+            return Ok(new LaunchResult { Success = true, Message = $"Queued request to start {count} {jobType} worker(s) on {hostname}" });
+        }
+    }
+
     [HttpPost("nodes/{hostname}/command")]
     public async Task<ActionResult> SendNodeCommand(string hostname, [FromBody] CommandRequest request)
     {
@@ -943,6 +1001,12 @@ public class QueueEta
 public class CommandRequest
 {
     public string Command { get; set; } = "";
+}
+
+public class StartWorkersRequest
+{
+    public int Count { get; set; } = 3;
+    public string JobType { get; set; } = "chunk_embed";
 }
 
 public class ThroughputBucket
