@@ -33,8 +33,25 @@ CHUNK_SIZE = 600       # tokens per chunk
 CHUNK_OVERLAP = 100    # overlap tokens between chunks
 MIN_CHUNK_SIZE = 30    # skip chunks smaller than this
 
-# Embedding server — override with EMBEDDING_SERVER_URL env var for remote nodes
-EMBEDDING_SERVER_URL = os.environ.get("EMBEDDING_SERVER_URL", "http://localhost:5050")
+def _get_embedding_url(db_url: str | None = None) -> str:
+    """Resolve embedding server URL.
+
+    Priority:
+    1. EMBEDDING_SERVER_URL env var (explicit override)
+    2. Auto-detect from db_url host — if the DB is on a remote host,
+       the embedding server is assumed to be on the same host at port 5050
+    3. Fallback to localhost:5050
+    """
+    env_url = os.environ.get("EMBEDDING_SERVER_URL")
+    if env_url:
+        return env_url
+    if db_url:
+        for part in db_url.split():
+            if part.startswith("host="):
+                host = part[5:].strip()
+                if host and host not in ("localhost", "127.0.0.1", ""):
+                    return f"http://{host}:5050"
+    return "http://localhost:5050"
 
 # Lazy singleton — loaded once per worker process
 _encoding = None
@@ -107,12 +124,12 @@ def combine_document_text(full_text, video_transcript):
     return '\n\n'.join(parts) if parts else None
 
 
-def generate_embeddings(texts):
+def generate_embeddings(texts, embedding_url: str):
     if not texts:
         return []
     body = json.dumps({"texts": texts}).encode()
     req = urllib.request.Request(
-        f"{EMBEDDING_SERVER_URL}/embed/batch",
+        f"{embedding_url}/embed/batch",
         data=body,
         headers={"Content-Type": "application/json"},
         method="POST"
@@ -135,6 +152,7 @@ def handle_chunk_embed_job(payload: dict) -> JobResult:
     """
     document_id = payload.get('document_id')
     db_url = payload.get('db_url')
+    embedding_url = _get_embedding_url(db_url)
 
     if not document_id:
         return JobResult(success=False, error="Missing required field: document_id")
@@ -208,7 +226,7 @@ def handle_chunk_embed_job(payload: dict) -> JobResult:
 
                 # Generate embeddings for all chunks in one batch
                 chunk_texts = [c['text'] for c in chunks]
-                embeddings = generate_embeddings(chunk_texts)
+                embeddings = generate_embeddings(chunk_texts, embedding_url)
 
                 # Insert chunks with embeddings
                 insert_data = []
