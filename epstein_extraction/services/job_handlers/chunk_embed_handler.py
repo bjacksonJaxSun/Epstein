@@ -16,7 +16,10 @@ Example payload:
     }
 """
 
+import json
 import logging
+import os
+import urllib.request
 
 import psycopg2
 from psycopg2.extras import execute_batch
@@ -30,9 +33,11 @@ CHUNK_SIZE = 600       # tokens per chunk
 CHUNK_OVERLAP = 100    # overlap tokens between chunks
 MIN_CHUNK_SIZE = 30    # skip chunks smaller than this
 
-# Lazy singletons — loaded once per worker process
+# Embedding server — override with EMBEDDING_SERVER_URL env var for remote nodes
+EMBEDDING_SERVER_URL = os.environ.get("EMBEDDING_SERVER_URL", "http://localhost:5050")
+
+# Lazy singleton — loaded once per worker process
 _encoding = None
-_model = None
 
 
 def _get_encoding():
@@ -42,17 +47,6 @@ def _get_encoding():
         import tiktoken
         _encoding = tiktoken.get_encoding('cl100k_base')
     return _encoding
-
-
-def _get_model():
-    """Lazily load sentence-transformer model."""
-    global _model
-    if _model is None:
-        from sentence_transformers import SentenceTransformer
-        logger.info("Loading embedding model all-MiniLM-L6-v2...")
-        _model = SentenceTransformer('all-MiniLM-L6-v2')
-        logger.info("Embedding model loaded")
-    return _model
 
 
 # ── Text processing functions (from run_rag_complete_fixed.py) ──
@@ -116,9 +110,15 @@ def combine_document_text(full_text, video_transcript):
 def generate_embeddings(texts):
     if not texts:
         return []
-    model = _get_model()
-    embeddings = model.encode(texts, show_progress_bar=False)
-    return embeddings.tolist()
+    body = json.dumps({"texts": texts}).encode()
+    req = urllib.request.Request(
+        f"{EMBEDDING_SERVER_URL}/embed/batch",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return json.loads(resp.read())["embeddings"]
 
 
 # ── Main handler ──
@@ -146,11 +146,6 @@ def handle_chunk_embed_job(payload: dict) -> JobResult:
         _get_encoding()
     except ImportError as e:
         return JobResult(success=False, error=f"Missing dependency: tiktoken ({e})")
-    try:
-        # Just check import, don't load model yet (heavy)
-        import sentence_transformers  # noqa: F401
-    except ImportError as e:
-        return JobResult(success=False, error=f"Missing dependency: sentence-transformers ({e})")
 
     try:
         with psycopg2.connect(db_url) as conn:

@@ -1,0 +1,45 @@
+======================================================================
+GAP ANALYSIS REPORT — 2026-02-20 17:47:53
+======================================================================
+
+SOURCE COUNTS:
+  DOJ Catalog:          817654
+  Physical files:       623069
+  Database records:     623073
+
+GAP SUMMARY:
+  In all three:                  126383
+  Need download (catalog-disk):     691271
+  Need DB import (disk-DB):           0
+  DB orphans (DB-disk):               4
+  Catalog-only (not on disk/DB):     691268
+  Dataset conflicts:                 15
+
+NEED DOWNLOAD — by dataset (catalog assignment):
+  Dataset  1:        2 files
+  Dataset  8:        1 files
+  Dataset  9:   411482 files
+  Dataset 11:   279783 files
+  Dataset 12:        3 files
+         TOTAL:   691271 files
+
+DATASET CONFLICTS (top 20):
+  EFTA              Catalog     Disk       DB
+  -------------- -------- -------- --------
+  EFTA00003380            3        2        2
+  EFTA00003434            3        2        2
+  EFTA00003435            3        2        2
+  EFTA00003436            3        2        2
+  EFTA00003437            3        2        2
+  EFTA00003438            3        2        2
+  EFTA00003439            3        2        2
+  EFTA00003440            3        2        2
+  EFTA00003441            3        2        2
+  EFTA00003488            3        2        2
+  EFTA00003855            3        2        2
+  EFTA02205655           11       11       10
+  EFTA02205827           11       11       10
+  EFTA02209622           11       11       10
+  EFTA02209722           11       11       10
+
+======================================================================

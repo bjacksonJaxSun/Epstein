@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Epstein Dashboard - Database Schema</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; overflow-x: hidden; }
+
+/* Stats bar */
+.stats-bar {
+  display: flex; gap: 24px; padding: 16px 24px; background: #1e293b;
+  border-bottom: 1px solid #334155; flex-wrap: wrap; align-items: center;
+}
+.stats-bar h1 { font-size: 18px; color: #f8fafc; margin-right: 16px; white-space: nowrap; }
+.stat { text-align: center; padding: 4px 12px; }
+.stat-value { font-size: 22px; font-weight: 700; color: #38bdf8; }
+.stat-label { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Controls */
+.controls {
+  display: flex; gap: 12px; padding: 12px 24px; background: #1e293b;
+  border-bottom: 1px solid #334155; flex-wrap: wrap; align-items: center;
+}
+.controls label { font-size: 13px; color: #94a3b8; }
+.controls input[type="text"] {
+  padding: 6px 12px; border-radius: 6px; border: 1px solid #475569;
+  background: #0f172a; color: #e2e8f0; font-size: 13px; width: 250px;
+}
+.controls button {
+  padding: 6px 14px; border-radius: 6px; border: 1px solid #475569;
+  background: #334155; color: #e2e8f0; font-size: 13px; cursor: pointer;
+}
+.controls button:hover { background: #475569; }
+.controls button.active { background: #3b82f6; border-color: #3b82f6; }
+
+/* Legend */
+.legend {
+  display: flex; gap: 16px; padding: 10px 24px; background: #1e293b;
+  border-bottom: 1px solid #334155; flex-wrap: wrap;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  color: #cbd5e1; cursor: pointer; padding: 3px 8px; border-radius: 4px;
+}
+.legend-item:hover { background: #334155; }
+.legend-item.dimmed { opacity: 0.3; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+/* Main canvas area */
+.schema-container {
+  position: relative; padding: 24px; min-height: calc(100vh - 200px);
+}
+
+/* SVG overlay for FK lines */
+.fk-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 10;
+}
+.fk-line { stroke-width: 1.5; fill: none; opacity: 0.4; }
+.fk-line.highlighted { stroke-width: 2.5; opacity: 1; }
+.fk-arrowhead { opacity: 0.4; }
+.fk-arrowhead.highlighted { opacity: 1; }
+
+/* Group sections */
+.group-section {
+  margin-bottom: 28px;
+}
+.group-header {
+  font-size: 15px; font-weight: 600; padding: 8px 16px; border-radius: 8px 8px 0 0;
+  margin-bottom: 2px; display: flex; align-items: center; gap: 8px;
+}
+.group-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px; padding: 12px; border-radius: 0 0 8px 8px;
+}
+
+/* Table cards */
+.table-card {
+  background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+  overflow: hidden; cursor: pointer; transition: all 0.15s;
+}
+.table-card:hover { border-color: #60a5fa; box-shadow: 0 0 12px rgba(96,165,250,0.15); }
+.table-card.selected { border-color: #f59e0b; box-shadow: 0 0 16px rgba(245,158,11,0.3); }
+.table-card.dimmed { opacity: 0.2; }
+.table-card.related { border-color: #34d399; box-shadow: 0 0 12px rgba(52,211,153,0.2); }
+
+.card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid #334155;
+}
+.card-title { font-size: 14px; font-weight: 600; color: #f8fafc; }
+.card-badges { display: flex; gap: 6px; }
+.badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  font-weight: 600; white-space: nowrap;
+}
+.badge-rows { background: #1e3a5f; color: #60a5fa; }
+.badge-size { background: #1a2e1a; color: #4ade80; }
+.badge-empty { background: #2d1b1b; color: #f87171; }
+.badge-idx { background: #2d2b1b; color: #fbbf24; }
+
+.card-columns {
+  padding: 6px 0; max-height: 200px; overflow-y: auto;
+}
+.card-columns::-webkit-scrollbar { width: 4px; }
+.card-columns::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+.col-row {
+  display: flex; align-items: center; gap: 6px; padding: 3px 12px;
+  font-size: 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+.col-row:hover { background: #334155; }
+.col-name { color: #e2e8f0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.col-type { color: #64748b; margin-left: auto; white-space: nowrap; font-size: 11px; }
+.col-badge {
+  font-size: 9px; padding: 1px 4px; border-radius: 3px; font-weight: 700;
+  flex-shrink: 0;
+}
+.col-pk { background: #854d0e; color: #fde047; }
+.col-fk { background: #1e3a5f; color: #60a5fa; }
+.col-nn { color: #ef4444; font-weight: 700; font-size: 10px; }
+
+/* Tooltip */
+.tooltip {
+  position: fixed; background: #1e293b; border: 1px solid #475569;
+  border-radius: 8px; padding: 12px; font-size: 12px; z-index: 100;
+  max-width: 350px; box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  display: none; pointer-events: none;
+}
+.tooltip h3 { color: #f8fafc; margin-bottom: 8px; font-size: 14px; }
+.tooltip .tt-section { margin-top: 6px; }
+.tooltip .tt-label { color: #94a3b8; font-size: 11px; text-transform: uppercase; }
+.tooltip .tt-fk { color: #60a5fa; }
+</style>
+</head>
+<body>
+
+<div class="stats-bar">
+  <h1>Epstein Dashboard Schema</h1>
+  <div class="stat"><div class="stat-value" id="stat-tables"></div><div class="stat-label">Tables</div></div>
+  <div class="stat"><div class="stat-value" id="stat-rows"></div><div class="stat-label">Total Rows</div></div>
+  <div class="stat"><div class="stat-value" id="stat-size"></div><div class="stat-label">Total Size</div></div>
+  <div class="stat"><div class="stat-value" id="stat-fks"></div><div class="stat-label">Foreign Keys</div></div>
+  <div class="stat"><div class="stat-value" id="stat-indexes"></div><div class="stat-label">Indexes</div></div>
+  <div class="stat"><div class="stat-value" id="stat-populated"></div><div class="stat-label">Populated</div></div>
+  <div class="stat"><div class="stat-value" id="stat-empty"></div><div class="stat-label">Empty</div></div>
+</div>
+
+<div class="controls">
+  <label>Search:</label>
+  <input type="text" id="search" placeholder="Filter tables or columns..." />
+  <button id="btn-reset" title="Clear selection and search">Reset</button>
+  <button id="btn-expand" title="Toggle column visibility">Collapse All</button>
+  <button id="btn-fk-lines" class="active" title="Toggle FK relationship lines">FK Lines</button>
+</div>
+
+<div class="legend" id="legend"></div>
+
+<div class="schema-container" id="schema-container">
+  <svg class="fk-overlay" id="fk-svg"></svg>
+  <div id="groups-container"></div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const DATA = {"tables": {"chunk_entity_mentions": {"name": "chunk_entity_mentions", "rows": 0, "size": "64 kB", "total_bytes": 65536, "columns": [{"name": "mention_id", "type": "bigint", "not_null": true}, {"name": "chunk_id", "type": "bigint", "not_null": true}, {"name": "document_id", "type": "bigint", "not_null": false}, {"name": "entity_type", "type": "varchar(50)", "not_null": true}, {"name": "entity_id", "type": "bigint", "not_null": false}, {"name": "entity_text", "type": "varchar(500)", "not_null": true}, {"name": "normalized_text", "type": "varchar(500)", "not_null": false}, {"name": "mention_offset", "type": "integer", "not_null": false}, {"name": "mention_length", "type": "integer", "not_null": false}, {"name": "context_before", "type": "text", "not_null": false}, {"name": "context_after", "type": "text", "not_null": false}, {"name": "confidence", "type": "numeric", "not_null": false}, {"name": "extraction_method", "type": "varchar(50)", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["mention_id"], "fk_cols": ["document_id"], "indexes": 7}, "chunk_terms": {"name": "chunk_terms", "rows": 0, "size": "48 kB", "total_bytes": 49152, "columns": [{"name": "term_id", "type": "bigint", "not_null": true}, {"name": "term", "type": "varchar(100)", "not_null": true}, {"name": "chunk_id", "type": "bigint", "not_null": true}, {"name": "document_id", "type": "bigint", "not_null": false}, {"name": "term_frequency", "type": "integer", "not_null": true}, {"name": "positions", "type": "ARRAY", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["term_id"], "fk_cols": ["document_id"], "indexes": 5}, "communication_recipients": {"name": "communication_recipients", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "recipient_id", "type": "integer", "not_null": true}, {"name": "communication_id", "type": "integer", "not_null": false}, {"name": "person_id", "type": "integer", "not_null": false}, {"name": "organization_id", "type": "integer", "not_null": false}, {"name": "recipient_type", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["recipient_id"], "fk_cols": [], "indexes": 1}, "communications": {"name": "communications", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "communication_id", "type": "integer", "not_null": true}, {"name": "communication_type", "type": "text", "not_null": false}, {"name": "sender_person_id", "type": "integer", "not_null": false}, {"name": "sender_organization_id", "type": "integer", "not_null": false}, {"name": "subject", "type": "text", "not_null": false}, {"name": "body_text", "type": "text", "not_null": false}, {"name": "communication_date", "type": "date", "not_null": false}, {"name": "communication_time", "type": "text", "not_null": false}, {"name": "source_document_id", "type": "integer", "not_null": false}, {"name": "has_attachments", "type": "boolean", "not_null": false}, {"name": "attachment_count", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["communication_id"], "fk_cols": [], "indexes": 1}, "document_chunks": {"name": "document_chunks", "rows": 884134, "size": "4565 MB", "total_bytes": 4787167232, "columns": [{"name": "chunk_id", "type": "integer", "not_null": true}, {"name": "document_id", "type": "integer", "not_null": false}, {"name": "chunk_index", "type": "integer", "not_null": true}, {"name": "chunk_text", "type": "text", "not_null": true}, {"name": "chunk_tokens", "type": "integer", "not_null": false}, {"name": "start_char", "type": "integer", "not_null": false}, {"name": "end_char", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}, {"name": "embedding_vector", "type": "vector", "not_null": false}], "pks": ["chunk_id"], "fk_cols": ["document_id"], "indexes": 3}, "document_classifications": {"name": "document_classifications", "rows": 0, "size": "32 kB", "total_bytes": 32768, "columns": [{"name": "classification_id", "type": "bigint", "not_null": true}, {"name": "media_file_id", "type": "bigint", "not_null": true}, {"name": "is_document", "type": "boolean", "not_null": false}, {"name": "is_photo", "type": "boolean", "not_null": false}, {"name": "document_type", "type": "text", "not_null": false}, {"name": "document_subtype", "type": "text", "not_null": false}, {"name": "has_handwriting", "type": "boolean", "not_null": false}, {"name": "has_signature", "type": "boolean", "not_null": false}, {"name": "has_letterhead", "type": "boolean", "not_null": false}, {"name": "has_stamp", "type": "boolean", "not_null": false}, {"name": "text_density", "type": "double precision", "not_null": false}, {"name": "estimated_date", "type": "text", "not_null": false}, {"name": "confidence", "type": "double precision", "not_null": false}, {"name": "classification_method", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["classification_id"], "fk_cols": ["media_file_id"], "indexes": 3}, "document_people": {"name": "document_people", "rows": 14178, "size": "1360 kB", "total_bytes": 1392640, "columns": [{"name": "id", "type": "integer", "not_null": true}, {"name": "document_id", "type": "integer", "not_null": false}, {"name": "person_id", "type": "integer", "not_null": false}, {"name": "mention_count", "type": "integer", "not_null": false}, {"name": "mention_context", "type": "text", "not_null": false}, {"name": "role_in_document", "type": "text", "not_null": false}, {"name": "confidence", "type": "numeric", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["id"], "fk_cols": [], "indexes": 1}, "documents": {"name": "documents", "rows": 1043428, "size": "1453 MB", "total_bytes": 1523933184, "columns": [{"name": "document_id", "type": "integer", "not_null": true}, {"name": "efta_number", "type": "text", "not_null": false}, {"name": "file_path", "type": "text", "not_null": false}, {"name": "document_type", "type": "text", "not_null": false}, {"name": "document_date", "type": "date", "not_null": false}, {"name": "document_title", "type": "text", "not_null": false}, {"name": "author", "type": "text", "not_null": false}, {"name": "recipient", "type": "text", "not_null": false}, {"name": "subject", "type": "text", "not_null": false}, {"name": "full_text", "type": "text", "not_null": false}, {"name": "full_text_searchable", "type": "text", "not_null": false}, {"name": "page_count", "type": "integer", "not_null": false}, {"name": "file_size_bytes", "type": "bigint", "not_null": false}, {"name": "classification_level", "type": "text", "not_null": false}, {"name": "is_redacted", "type": "boolean", "not_null": false}, {"name": "redaction_level", "type": "text", "not_null": false}, {"name": "source_agency", "type": "text", "not_null": false}, {"name": "extraction_status", "type": "text", "not_null": false}, {"name": "extraction_confidence", "type": "numeric", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}, {"name": "video_path", "type": "text", "not_null": false}, {"name": "video_transcript", "type": "text", "not_null": false}, {"name": "photos_checked_at", "type": "timestamp without time zone", "not_null": false}, {"name": "r2_key", "type": "text", "not_null": false}, {"name": "ocr_status", "type": "text", "not_null": false}], "pks": ["document_id"], "fk_cols": [], "indexes": 9}, "entity_cooccurrences": {"name": "entity_cooccurrences", "rows": 0, "size": "72 kB", "total_bytes": 73728, "columns": [{"name": "cooccurrence_id", "type": "bigint", "not_null": true}, {"name": "entity1_type", "type": "varchar(50)", "not_null": true}, {"name": "entity1_id", "type": "bigint", "not_null": false}, {"name": "entity1_text", "type": "varchar(500)", "not_null": true}, {"name": "entity1_normalized", "type": "varchar(500)", "not_null": false}, {"name": "entity2_type", "type": "varchar(50)", "not_null": true}, {"name": "entity2_id", "type": "bigint", "not_null": false}, {"name": "entity2_text", "type": "varchar(500)", "not_null": true}, {"name": "entity2_normalized", "type": "varchar(500)", "not_null": false}, {"name": "chunk_count", "type": "integer", "not_null": true}, {"name": "document_count", "type": "integer", "not_null": true}, {"name": "first_seen_doc_id", "type": "bigint", "not_null": false}, {"name": "last_seen_doc_id", "type": "bigint", "not_null": false}, {"name": "sample_chunks", "type": "ARRAY", "not_null": false}, {"name": "confidence", "type": "numeric", "not_null": false}, {"name": "relationship_type", "type": "varchar(100)", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["cooccurrence_id"], "fk_cols": ["first_seen_doc_id", "last_seen_doc_id"], "indexes": 8}, "event_participants": {"name": "event_participants", "rows": 33127, "size": "2800 kB", "total_bytes": 2867200, "columns": [{"name": "participant_id", "type": "integer", "not_null": true}, {"name": "event_id", "type": "integer", "not_null": false}, {"name": "person_id", "type": "integer", "not_null": false}, {"name": "organization_id", "type": "integer", "not_null": false}, {"name": "participation_role", "type": "text", "not_null": false}, {"name": "notes", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["participant_id"], "fk_cols": [], "indexes": 1}, "events": {"name": "events", "rows": 35202, "size": "12 MB", "total_bytes": 12214272, "columns": [{"name": "event_id", "type": "integer", "not_null": true}, {"name": "event_type", "type": "text", "not_null": false}, {"name": "title", "type": "text", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "event_date", "type": "date", "not_null": false}, {"name": "event_time", "type": "text", "not_null": false}, {"name": "end_date", "type": "date", "not_null": false}, {"name": "end_time", "type": "text", "not_null": false}, {"name": "duration_minutes", "type": "integer", "not_null": false}, {"name": "location_id", "type": "integer", "not_null": false}, {"name": "source_document_id", "type": "integer", "not_null": false}, {"name": "additional_source_docs", "type": "text", "not_null": false}, {"name": "confidence_level", "type": "text", "not_null": false}, {"name": "verification_status", "type": "text", "not_null": false}, {"name": "notes", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["event_id"], "fk_cols": [], "indexes": 1}, "evidence_items": {"name": "evidence_items", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "evidence_id", "type": "integer", "not_null": true}, {"name": "evidence_type", "type": "text", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "evidence_number", "type": "text", "not_null": false}, {"name": "chain_of_custody", "type": "text", "not_null": false}, {"name": "seized_from_location_id", "type": "integer", "not_null": false}, {"name": "seized_from_person_id", "type": "integer", "not_null": false}, {"name": "seizure_date", "type": "text", "not_null": false}, {"name": "current_location", "type": "text", "not_null": false}, {"name": "status", "type": "text", "not_null": false}, {"name": "source_document_id", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["evidence_id"], "fk_cols": [], "indexes": 1}, "extraction_jobs": {"name": "extraction_jobs", "rows": 0, "size": "32 kB", "total_bytes": 32768, "columns": [{"name": "job_id", "type": "bigint", "not_null": true}, {"name": "job_type", "type": "varchar(50)", "not_null": true}, {"name": "status", "type": "varchar(50)", "not_null": false}, {"name": "total_items", "type": "integer", "not_null": false}, {"name": "processed_items", "type": "integer", "not_null": false}, {"name": "failed_items", "type": "integer", "not_null": false}, {"name": "error_message", "type": "text", "not_null": false}, {"name": "started_at", "type": "timestamp without time zone", "not_null": false}, {"name": "completed_at", "type": "timestamp without time zone", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["job_id"], "fk_cols": [], "indexes": 1}, "extraction_log": {"name": "extraction_log", "rows": 6449, "size": "1192 kB", "total_bytes": 1220608, "columns": [{"name": "log_id", "type": "integer", "not_null": true}, {"name": "document_id", "type": "integer", "not_null": false}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "extraction_type", "type": "text", "not_null": false}, {"name": "status", "type": "text", "not_null": false}, {"name": "entities_extracted", "type": "integer", "not_null": false}, {"name": "relationships_extracted", "type": "integer", "not_null": false}, {"name": "events_extracted", "type": "integer", "not_null": false}, {"name": "error_message", "type": "text", "not_null": false}, {"name": "warnings", "type": "text", "not_null": false}, {"name": "processing_time_ms", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["log_id"], "fk_cols": [], "indexes": 1}, "face_clusters": {"name": "face_clusters", "rows": 0, "size": "24 kB", "total_bytes": 24576, "columns": [{"name": "cluster_id", "type": "integer", "not_null": true}, {"name": "person_id", "type": "integer", "not_null": false}, {"name": "person_name", "type": "text", "not_null": false}, {"name": "face_count", "type": "integer", "not_null": false}, {"name": "representative_face_id", "type": "integer", "not_null": false}, {"name": "centroid_encoding", "type": "bytea", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["cluster_id"], "fk_cols": [], "indexes": 2}, "face_detections": {"name": "face_detections", "rows": 75, "size": "648 kB", "total_bytes": 663552, "columns": [{"name": "face_id", "type": "integer", "not_null": true}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "face_index", "type": "integer", "not_null": false}, {"name": "bounding_box", "type": "text", "not_null": false}, {"name": "face_encoding", "type": "bytea", "not_null": false}, {"name": "cluster_id", "type": "integer", "not_null": false}, {"name": "confidence", "type": "double precision", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["face_id"], "fk_cols": [], "indexes": 3}, "financial_transactions": {"name": "financial_transactions", "rows": 118, "size": "40 kB", "total_bytes": 40960, "columns": [{"name": "transaction_id", "type": "integer", "not_null": true}, {"name": "transaction_type", "type": "text", "not_null": false}, {"name": "amount", "type": "numeric", "not_null": false}, {"name": "currency", "type": "text", "not_null": false}, {"name": "from_person_id", "type": "integer", "not_null": false}, {"name": "from_organization_id", "type": "integer", "not_null": false}, {"name": "to_person_id", "type": "integer", "not_null": false}, {"name": "to_organization_id", "type": "integer", "not_null": false}, {"name": "transaction_date", "type": "text", "not_null": false}, {"name": "purpose", "type": "text", "not_null": false}, {"name": "reference_number", "type": "text", "not_null": false}, {"name": "from_account", "type": "text", "not_null": false}, {"name": "to_account", "type": "text", "not_null": false}, {"name": "bank_name", "type": "text", "not_null": false}, {"name": "source_document_id", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["transaction_id"], "fk_cols": [], "indexes": 1}, "image_analysis": {"name": "image_analysis", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "analysis_id", "type": "integer", "not_null": true}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "generated_caption", "type": "text", "not_null": false}, {"name": "tags", "type": "text", "not_null": false}, {"name": "categories", "type": "text", "not_null": false}, {"name": "analysis_provider", "type": "text", "not_null": false}, {"name": "analysis_model_version", "type": "text", "not_null": false}, {"name": "analysis_date", "type": "text", "not_null": false}, {"name": "confidence_score", "type": "numeric", "not_null": false}, {"name": "contains_text", "type": "boolean", "not_null": false}, {"name": "extracted_text", "type": "text", "not_null": false}, {"name": "text_language", "type": "text", "not_null": false}, {"name": "contains_faces", "type": "boolean", "not_null": false}, {"name": "face_count", "type": "integer", "not_null": false}, {"name": "scene_type", "type": "text", "not_null": false}, {"name": "is_explicit", "type": "boolean", "not_null": false}, {"name": "is_sensitive", "type": "boolean", "not_null": false}, {"name": "moderation_labels", "type": "text", "not_null": false}, {"name": "dominant_colors", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["analysis_id"], "fk_cols": [], "indexes": 1}, "investigation_findings": {"name": "investigation_findings", "rows": 0, "size": "32 kB", "total_bytes": 32768, "columns": [{"name": "finding_id", "type": "bigint", "not_null": true}, {"name": "session_id", "type": "bigint", "not_null": false}, {"name": "finding_type", "type": "varchar(50)", "not_null": false}, {"name": "title", "type": "varchar(255)", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "evidence_chunk_ids", "type": "ARRAY", "not_null": false}, {"name": "evidence_document_ids", "type": "ARRAY", "not_null": false}, {"name": "related_entity_ids", "type": "jsonb", "not_null": false}, {"name": "confidence", "type": "numeric", "not_null": false}, {"name": "is_verified", "type": "boolean", "not_null": false}, {"name": "verified_by", "type": "varchar(100)", "not_null": false}, {"name": "verified_at", "type": "timestamp without time zone", "not_null": false}, {"name": "notes", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["finding_id"], "fk_cols": ["session_id"], "indexes": 3}, "investigation_sessions": {"name": "investigation_sessions", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "session_id", "type": "bigint", "not_null": true}, {"name": "session_name", "type": "varchar(255)", "not_null": true}, {"name": "description", "type": "text", "not_null": false}, {"name": "created_by", "type": "varchar(100)", "not_null": false}, {"name": "seed_query", "type": "text", "not_null": false}, {"name": "seed_entities", "type": "jsonb", "not_null": false}, {"name": "discovered_entities", "type": "jsonb", "not_null": false}, {"name": "entity_graph", "type": "jsonb", "not_null": false}, {"name": "timeline_data", "type": "jsonb", "not_null": false}, {"name": "notes", "type": "text", "not_null": false}, {"name": "status", "type": "varchar(50)", "not_null": false}, {"name": "created_at", "type": "timestamp without time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["session_id"], "fk_cols": [], "indexes": 1}, "location_clusters": {"name": "location_clusters", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "cluster_id", "type": "integer", "not_null": true}, {"name": "location_name", "type": "text", "not_null": false}, {"name": "location_type", "type": "text", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "media_count", "type": "integer", "not_null": false}, {"name": "representative_media_id", "type": "integer", "not_null": false}, {"name": "created_at", "type": "text", "not_null": false}], "pks": ["cluster_id"], "fk_cols": [], "indexes": 1}, "locations": {"name": "locations", "rows": 3018, "size": "936 kB", "total_bytes": 958464, "columns": [{"name": "location_id", "type": "integer", "not_null": true}, {"name": "location_name", "type": "text", "not_null": false}, {"name": "location_type", "type": "text", "not_null": false}, {"name": "street_address", "type": "text", "not_null": false}, {"name": "city", "type": "text", "not_null": false}, {"name": "state_province", "type": "text", "not_null": false}, {"name": "country", "type": "text", "not_null": false}, {"name": "postal_code", "type": "text", "not_null": false}, {"name": "latitude", "type": "numeric", "not_null": false}, {"name": "longitude", "type": "numeric", "not_null": false}, {"name": "owner_person_id", "type": "integer", "not_null": false}, {"name": "owner_organization_id", "type": "integer", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "first_mentioned_in_doc_id", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["location_id"], "fk_cols": ["first_mentioned_in_doc_id"], "indexes": 1}, "media_events": {"name": "media_events", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "media_event_id", "type": "integer", "not_null": true}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "event_id", "type": "integer", "not_null": false}, {"name": "is_primary_evidence", "type": "boolean", "not_null": false}, {"name": "sequence_number", "type": "integer", "not_null": false}, {"name": "relationship_description", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["media_event_id"], "fk_cols": [], "indexes": 1}, "media_files": {"name": "media_files", "rows": 1180108, "size": "533 MB", "total_bytes": 558948352, "columns": [{"name": "media_file_id", "type": "integer", "not_null": true}, {"name": "file_path", "type": "text", "not_null": false}, {"name": "file_name", "type": "text", "not_null": false}, {"name": "media_type", "type": "text", "not_null": false}, {"name": "file_format", "type": "text", "not_null": false}, {"name": "file_size_bytes", "type": "bigint", "not_null": false}, {"name": "checksum", "type": "text", "not_null": false}, {"name": "date_taken", "type": "text", "not_null": false}, {"name": "camera_make", "type": "text", "not_null": false}, {"name": "camera_model", "type": "text", "not_null": false}, {"name": "gps_latitude", "type": "numeric", "not_null": false}, {"name": "gps_longitude", "type": "numeric", "not_null": false}, {"name": "gps_altitude", "type": "numeric", "not_null": false}, {"name": "width_pixels", "type": "integer", "not_null": false}, {"name": "height_pixels", "type": "integer", "not_null": false}, {"name": "duration_seconds", "type": "integer", "not_null": false}, {"name": "orientation", "type": "text", "not_null": false}, {"name": "original_filename", "type": "text", "not_null": false}, {"name": "caption", "type": "text", "not_null": false}, {"name": "source_document_id", "type": "integer", "not_null": false}, {"name": "evidence_item_id", "type": "integer", "not_null": false}, {"name": "location_id", "type": "integer", "not_null": false}, {"name": "is_explicit", "type": "boolean", "not_null": false}, {"name": "is_sensitive", "type": "boolean", "not_null": false}, {"name": "classification_level", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}, {"name": "is_likely_photo", "type": "boolean", "not_null": false}], "pks": ["media_file_id"], "fk_cols": ["source_document_id"], "indexes": 4}, "media_location_clusters": {"name": "media_location_clusters", "rows": 0, "size": "8192 bytes", "total_bytes": 8192, "columns": [{"name": "media_file_id", "type": "integer", "not_null": true}, {"name": "cluster_id", "type": "integer", "not_null": true}, {"name": "confidence", "type": "double precision", "not_null": false}], "pks": ["media_file_id", "cluster_id"], "fk_cols": [], "indexes": 1}, "media_people": {"name": "media_people", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "media_person_id", "type": "integer", "not_null": true}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "person_id", "type": "integer", "not_null": false}, {"name": "visual_entity_id", "type": "integer", "not_null": false}, {"name": "identification_method", "type": "text", "not_null": false}, {"name": "confidence", "type": "numeric", "not_null": false}, {"name": "position_description", "type": "text", "not_null": false}, {"name": "notes", "type": "text", "not_null": false}, {"name": "tagged_by", "type": "text", "not_null": false}, {"name": "verified", "type": "boolean", "not_null": false}, {"name": "verified_by", "type": "text", "not_null": false}, {"name": "verified_date", "type": "text", "not_null": false}, {"name": "created_at", "type": "text", "not_null": false}, {"name": "updated_at", "type": "text", "not_null": false}], "pks": ["media_person_id"], "fk_cols": [], "indexes": 1}, "organizations": {"name": "organizations", "rows": 13519, "size": "3352 kB", "total_bytes": 3432448, "columns": [{"name": "organization_id", "type": "integer", "not_null": true}, {"name": "organization_name", "type": "text", "not_null": false}, {"name": "organization_type", "type": "text", "not_null": false}, {"name": "parent_organization_id", "type": "integer", "not_null": false}, {"name": "headquarters_location", "type": "text", "not_null": false}, {"name": "website", "type": "text", "not_null": false}, {"name": "description", "type": "text", "not_null": false}, {"name": "first_mentioned_in_doc_id", "type": "integer", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["organization_id"], "fk_cols": ["first_mentioned_in_doc_id"], "indexes": 1}, "pending_imports": {"name": "pending_imports", "rows": 373582, "size": "68 MB", "total_bytes": 71065600, "columns": [{"name": "id", "type": "integer", "not_null": true}, {"name": "filename", "type": "text", "not_null": true}, {"name": "efta_number", "type": "text", "not_null": true}, {"name": "status", "type": "text", "not_null": false}, {"name": "claimed_by", "type": "text", "not_null": false}, {"name": "claimed_at", "type": "timestamp without time zone", "not_null": false}, {"name": "completed_at", "type": "timestamp without time zone", "not_null": false}, {"name": "error_message", "type": "text", "not_null": false}], "pks": ["id"], "fk_cols": [], "indexes": 3}, "people": {"name": "people", "rows": 10157, "size": "2360 kB", "total_bytes": 2416640, "columns": [{"name": "person_id", "type": "integer", "not_null": true}, {"name": "full_name", "type": "text", "not_null": false}, {"name": "name_variations", "type": "text", "not_null": false}, {"name": "primary_role", "type": "text", "not_null": false}, {"name": "roles", "type": "text", "not_null": false}, {"name": "email_addresses", "type": "text", "not_null": false}, {"name": "phone_numbers", "type": "text", "not_null": false}, {"name": "addresses", "type": "text", "not_null": false}, {"name": "is_redacted", "type": "boolean", "not_null": false}, {"name": "victim_identifier", "type": "text", "not_null": false}, {"name": "date_of_birth", "type": "text", "not_null": false}, {"name": "nationality", "type": "text", "not_null": false}, {"name": "occupation", "type": "text", "not_null": false}, {"name": "first_mentioned_in_doc_id", "type": "integer", "not_null": false}, {"name": "confidence_level", "type": "text", "not_null": false}, {"name": "notes", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}, {"name": "epstein_relationship", "type": "text", "not_null": false}], "pks": ["person_id"], "fk_cols": ["first_mentioned_in_doc_id"], "indexes": 1}, "refresh_tokens": {"name": "refresh_tokens", "rows": 30, "size": "72 kB", "total_bytes": 73728, "columns": [{"name": "token_id", "type": "bigint", "not_null": true}, {"name": "user_id", "type": "bigint", "not_null": true}, {"name": "token_hash", "type": "varchar(255)", "not_null": true}, {"name": "expires_at", "type": "timestamp with time zone", "not_null": true}, {"name": "created_at", "type": "timestamp with time zone", "not_null": true}, {"name": "revoked_at", "type": "timestamp with time zone", "not_null": false}, {"name": "replaced_by_token_id", "type": "bigint", "not_null": false}], "pks": ["token_id"], "fk_cols": ["replaced_by_token_id", "user_id"], "indexes": 3}, "relationships": {"name": "relationships", "rows": 922, "size": "176 kB", "total_bytes": 180224, "columns": [{"name": "relationship_id", "type": "integer", "not_null": true}, {"name": "person1_id", "type": "integer", "not_null": false}, {"name": "person2_id", "type": "integer", "not_null": false}, {"name": "relationship_type", "type": "text", "not_null": false}, {"name": "relationship_description", "type": "text", "not_null": false}, {"name": "start_date", "type": "date", "not_null": false}, {"name": "end_date", "type": "date", "not_null": false}, {"name": "is_current", "type": "boolean", "not_null": false}, {"name": "source_document_id", "type": "integer", "not_null": false}, {"name": "confidence_level", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["relationship_id"], "fk_cols": ["person2_id", "person1_id"], "indexes": 1}, "roles": {"name": "roles", "rows": 0, "size": "48 kB", "total_bytes": 49152, "columns": [{"name": "role_id", "type": "bigint", "not_null": true}, {"name": "name", "type": "varchar(50)", "not_null": true}, {"name": "description", "type": "varchar(500)", "not_null": false}, {"name": "tier_level", "type": "integer", "not_null": true}], "pks": ["role_id"], "fk_cols": [], "indexes": 2}, "scene_analysis": {"name": "scene_analysis", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "analysis_id", "type": "integer", "not_null": true}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "scene_type", "type": "text", "not_null": false}, {"name": "scene_description", "type": "text", "not_null": false}, {"name": "detected_objects", "type": "text", "not_null": false}, {"name": "detected_text", "type": "text", "not_null": false}, {"name": "location_hints", "type": "text", "not_null": false}, {"name": "date_hints", "type": "text", "not_null": false}, {"name": "is_document", "type": "integer", "not_null": false}, {"name": "is_photo", "type": "integer", "not_null": false}, {"name": "confidence", "type": "double precision", "not_null": false}, {"name": "provider", "type": "text", "not_null": false}, {"name": "created_at", "type": "text", "not_null": false}], "pks": ["analysis_id"], "fk_cols": [], "indexes": 1}, "term_document_frequency": {"name": "term_document_frequency", "rows": 0, "size": "8192 bytes", "total_bytes": 8192, "columns": [{"name": "term", "type": "varchar(100)", "not_null": true}, {"name": "document_count", "type": "integer", "not_null": true}, {"name": "chunk_count", "type": "integer", "not_null": true}, {"name": "total_occurrences", "type": "integer", "not_null": true}, {"name": "updated_at", "type": "timestamp without time zone", "not_null": false}], "pks": ["term"], "fk_cols": [], "indexes": 1}, "user_roles": {"name": "user_roles", "rows": 0, "size": "24 kB", "total_bytes": 24576, "columns": [{"name": "user_id", "type": "bigint", "not_null": true}, {"name": "role_id", "type": "bigint", "not_null": true}, {"name": "assigned_at", "type": "timestamp with time zone", "not_null": true}], "pks": ["user_id", "role_id"], "fk_cols": ["user_id", "role_id"], "indexes": 1}, "users": {"name": "users", "rows": 0, "size": "64 kB", "total_bytes": 65536, "columns": [{"name": "user_id", "type": "bigint", "not_null": true}, {"name": "username", "type": "varchar(100)", "not_null": true}, {"name": "email", "type": "varchar(255)", "not_null": true}, {"name": "password_hash", "type": "varchar(255)", "not_null": true}, {"name": "is_active", "type": "boolean", "not_null": true}, {"name": "is_email_verified", "type": "boolean", "not_null": true}, {"name": "last_login_at", "type": "timestamp with time zone", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": true}, {"name": "updated_at", "type": "timestamp with time zone", "not_null": true}], "pks": ["user_id"], "fk_cols": [], "indexes": 3}, "visual_entities": {"name": "visual_entities", "rows": 0, "size": "16 kB", "total_bytes": 16384, "columns": [{"name": "entity_id", "type": "integer", "not_null": true}, {"name": "media_file_id", "type": "integer", "not_null": false}, {"name": "entity_type", "type": "text", "not_null": false}, {"name": "entity_label", "type": "text", "not_null": false}, {"name": "entity_description", "type": "text", "not_null": false}, {"name": "bbox_x", "type": "numeric", "not_null": false}, {"name": "bbox_y", "type": "numeric", "not_null": false}, {"name": "bbox_width", "type": "numeric", "not_null": false}, {"name": "bbox_height", "type": "numeric", "not_null": false}, {"name": "confidence", "type": "numeric", "not_null": false}, {"name": "person_id", "type": "integer", "not_null": false}, {"name": "estimated_age_range", "type": "text", "not_null": false}, {"name": "gender", "type": "text", "not_null": false}, {"name": "facial_expression", "type": "text", "not_null": false}, {"name": "face_encoding", "type": "text", "not_null": false}, {"name": "attributes", "type": "text", "not_null": false}, {"name": "created_at", "type": "timestamp with time zone", "not_null": false}], "pks": ["entity_id"], "fk_cols": [], "indexes": 1}}, "fks": [{"constraint_name": "chunk_entity_mentions_document_id_fkey", "from_table": "chunk_entity_mentions", "from_column": "document_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "chunk_terms_document_id_fkey", "from_table": "chunk_terms", "from_column": "document_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "document_chunks_document_id_fkey", "from_table": "document_chunks", "from_column": "document_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "document_classifications_media_file_id_fkey", "from_table": "document_classifications", "from_column": "media_file_id", "to_table": "media_files", "to_column": "media_file_id"}, {"constraint_name": "entity_cooccurrences_last_seen_doc_id_fkey", "from_table": "entity_cooccurrences", "from_column": "last_seen_doc_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "entity_cooccurrences_first_seen_doc_id_fkey", "from_table": "entity_cooccurrences", "from_column": "first_seen_doc_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "investigation_findings_session_id_fkey", "from_table": "investigation_findings", "from_column": "session_id", "to_table": "investigation_sessions", "to_column": "session_id"}, {"constraint_name": "fk_loc_first_doc", "from_table": "locations", "from_column": "first_mentioned_in_doc_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "fk_media_source_doc", "from_table": "media_files", "from_column": "source_document_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "fk_org_first_doc", "from_table": "organizations", "from_column": "first_mentioned_in_doc_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "fk_people_first_doc", "from_table": "people", "from_column": "first_mentioned_in_doc_id", "to_table": "documents", "to_column": "document_id"}, {"constraint_name": "refresh_tokens_replaced_by_token_id_fkey", "from_table": "refresh_tokens", "from_column": "replaced_by_token_id", "to_table": "refresh_tokens", "to_column": "token_id"}, {"constraint_name": "refresh_tokens_user_id_fkey", "from_table": "refresh_tokens", "from_column": "user_id", "to_table": "users", "to_column": "user_id"}, {"constraint_name": "fk_rel_person1", "from_table": "relationships", "from_column": "person1_id", "to_table": "people", "to_column": "person_id"}, {"constraint_name": "fk_rel_person2", "from_table": "relationships", "from_column": "person2_id", "to_table": "people", "to_column": "person_id"}, {"constraint_name": "user_roles_role_id_fkey", "from_table": "user_roles", "from_column": "role_id", "to_table": "roles", "to_column": "role_id"}, {"constraint_name": "user_roles_user_id_fkey", "from_table": "user_roles", "from_column": "user_id", "to_table": "users", "to_column": "user_id"}], "groups": {"Core Documents": {"color": "#3b82f6", "bg": "#eff6ff", "border": "#93c5fd", "tables": ["documents", "document_chunks", "pending_imports"]}, "People & Orgs": {"color": "#22c55e", "bg": "#f0fdf4", "border": "#86efac", "tables": ["people", "organizations", "locations"]}, "Events & Relations": {"color": "#f97316", "bg": "#fff7ed", "border": "#fdba74", "tables": ["events", "event_participants", "relationships", "communications", "communication_recipients", "financial_transactions", "evidence_items"]}, "Media & Vision": {"color": "#a855f7", "bg": "#faf5ff", "border": "#d8b4fe", "tables": ["media_files", "media_people", "media_events", "visual_entities", "image_analysis", "document_classifications", "face_detections", "face_clusters", "scene_analysis"]}, "Document Links": {"color": "#14b8a6", "bg": "#f0fdfa", "border": "#5eead4", "tables": ["document_people", "extraction_log"]}, "RAG / Search": {"color": "#ef4444", "bg": "#fef2f2", "border": "#fca5a5", "tables": ["chunk_entity_mentions", "chunk_terms", "entity_cooccurrences", "term_document_frequency"]}, "Investigation": {"color": "#6b7280", "bg": "#f9fafb", "border": "#d1d5db", "tables": ["investigation_sessions", "investigation_findings", "location_clusters", "media_location_clusters", "extraction_jobs"]}, "Auth": {"color": "#eab308", "bg": "#fefce8", "border": "#fde047", "tables": ["users", "roles", "user_roles", "refresh_tokens"]}}, "stats": {"total_tables": 37, "total_rows": 3598047, "total_rows_fmt": "3.6M", "total_size": "6.5 GB", "total_indexes": 81, "total_fks": 17, "populated": 15, "empty": 22}};
+
+// State
+let selectedTable = null;
+let collapsed = false;
+let showFKLines = true;
+let dimmedGroups = new Set();
+
+// --- Render ---
+
+function init() {
+  renderStats();
+  renderLegend();
+  renderGroups();
+  drawFKLines();
+
+  document.getElementById('search').addEventListener('input', onSearch);
+  document.getElementById('btn-reset').addEventListener('click', onReset);
+  document.getElementById('btn-expand').addEventListener('click', onToggleCollapse);
+  document.getElementById('btn-fk-lines').addEventListener('click', onToggleFKLines);
+  window.addEventListener('resize', drawFKLines);
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.table-card') && !e.target.closest('.legend-item')) {
+      clearSelection();
+    }
+  });
+}
+
+function renderStats() {
+  const s = DATA.stats;
+  document.getElementById('stat-tables').textContent = s.total_tables;
+  document.getElementById('stat-rows').textContent = s.total_rows_fmt;
+  document.getElementById('stat-size').textContent = s.total_size;
+  document.getElementById('stat-fks').textContent = s.total_fks;
+  document.getElementById('stat-indexes').textContent = s.total_indexes;
+  document.getElementById('stat-populated').textContent = s.populated;
+  document.getElementById('stat-empty').textContent = s.empty;
+}
+
+function renderLegend() {
+  const legend = document.getElementById('legend');
+  legend.innerHTML = '';
+  for (const [name, group] of Object.entries(DATA.groups)) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.dataset.group = name;
+    item.innerHTML = `<div class="legend-dot" style="background:${group.color}"></div>${name} (${group.tables.length})`;
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleGroup(name);
+    });
+    legend.appendChild(item);
+  }
+}
+
+function renderGroups() {
+  const container = document.getElementById('groups-container');
+  container.innerHTML = '';
+
+  for (const [groupName, group] of Object.entries(DATA.groups)) {
+    const section = document.createElement('div');
+    section.className = 'group-section';
+    section.dataset.group = groupName;
+
+    const header = document.createElement('div');
+    header.className = 'group-header';
+    header.style.background = group.bg;
+    header.style.color = group.color;
+    header.style.borderLeft = `4px solid ${group.color}`;
+    header.textContent = groupName;
+
+    const grid = document.createElement('div');
+    grid.className = 'group-grid';
+    grid.style.background = group.bg + '40';
+    grid.style.border = `1px solid ${group.border}30`;
+
+    for (const tableName of group.tables) {
+      const tbl = DATA.tables[tableName];
+      if (!tbl) continue;
+      grid.appendChild(createTableCard(tbl, group));
+    }
+
+    section.appendChild(header);
+    section.appendChild(grid);
+    container.appendChild(section);
+  }
+}
+
+function createTableCard(tbl, group) {
+  const card = document.createElement('div');
+  card.className = 'table-card';
+  card.dataset.table = tbl.name;
+  card.id = 'card-' + tbl.name;
+
+  // Header
+  const hdr = document.createElement('div');
+  hdr.className = 'card-header';
+  hdr.style.borderLeftColor = group.color;
+
+  const title = document.createElement('span');
+  title.className = 'card-title';
+  title.textContent = tbl.name;
+
+  const badges = document.createElement('div');
+  badges.className = 'card-badges';
+
+  if (tbl.rows > 0) {
+    badges.innerHTML += `<span class="badge badge-rows">${fmtRows(tbl.rows)} rows</span>`;
+  } else {
+    badges.innerHTML += `<span class="badge badge-empty">empty</span>`;
+  }
+  badges.innerHTML += `<span class="badge badge-size">${tbl.size}</span>`;
+  if (tbl.indexes > 0) {
+    badges.innerHTML += `<span class="badge badge-idx">${tbl.indexes} idx</span>`;
+  }
+
+  hdr.appendChild(title);
+  hdr.appendChild(badges);
+
+  // Columns
+  const cols = document.createElement('div');
+  cols.className = 'card-columns';
+  if (collapsed) cols.style.display = 'none';
+
+  for (const col of tbl.columns) {
+    const row = document.createElement('div');
+    row.className = 'col-row';
+
+    let badgesHtml = '';
+    if (tbl.pks.includes(col.name)) badgesHtml += '<span class="col-badge col-pk">PK</span>';
+    if (tbl.fk_cols.includes(col.name)) badgesHtml += '<span class="col-badge col-fk">FK</span>';
+
+    const nn = col.not_null && !tbl.pks.includes(col.name) ? '<span class="col-nn">*</span>' : '';
+
+    row.innerHTML = `${badgesHtml}<span class="col-name">${col.name}</span>${nn}<span class="col-type">${col.type}</span>`;
+    cols.appendChild(row);
+  }
+
+  card.appendChild(hdr);
+  card.appendChild(cols);
+
+  card.addEventListener('click', (e) => {
+    e.stopPropagation();
+    selectTable(tbl.name);
+  });
+
+  card.addEventListener('mouseenter', (e) => showTooltip(e, tbl));
+  card.addEventListener('mouseleave', hideTooltip);
+
+  return card;
+}
+
+// --- Interactions ---
+
+function selectTable(name) {
+  if (selectedTable === name) {
+    clearSelection();
+    return;
+  }
+  selectedTable = name;
+
+  // Find related tables
+  const related = new Set();
+  for (const fk of DATA.fks) {
+    if (fk.from_table === name) related.add(fk.to_table);
+    if (fk.to_table === name) related.add(fk.from_table);
+  }
+
+  document.querySelectorAll('.table-card').forEach(card => {
+    const t = card.dataset.table;
+    card.classList.remove('selected', 'related', 'dimmed');
+    if (t === name) card.classList.add('selected');
+    else if (related.has(t)) card.classList.add('related');
+    else card.classList.add('dimmed');
+  });
+
+  drawFKLines();
+}
+
+function clearSelection() {
+  selectedTable = null;
+  document.querySelectorAll('.table-card').forEach(card => {
+    card.classList.remove('selected', 'related', 'dimmed');
+  });
+  drawFKLines();
+}
+
+function toggleGroup(groupName) {
+  if (dimmedGroups.has(groupName)) {
+    dimmedGroups.delete(groupName);
+  } else {
+    dimmedGroups.add(groupName);
+  }
+  document.querySelectorAll('.legend-item').forEach(item => {
+    item.classList.toggle('dimmed', dimmedGroups.has(item.dataset.group));
+  });
+  document.querySelectorAll('.group-section').forEach(section => {
+    section.style.display = dimmedGroups.has(section.dataset.group) ? 'none' : '';
+  });
+  drawFKLines();
+}
+
+function onSearch(e) {
+  const q = e.target.value.toLowerCase().trim();
+  document.querySelectorAll('.table-card').forEach(card => {
+    if (!q) {
+      card.style.display = '';
+      return;
+    }
+    const tbl = DATA.tables[card.dataset.table];
+    const match = tbl.name.includes(q) || tbl.columns.some(c => c.name.includes(q) || c.type.includes(q));
+    card.style.display = match ? '' : 'none';
+  });
+  drawFKLines();
+}
+
+function onReset() {
+  document.getElementById('search').value = '';
+  dimmedGroups.clear();
+  selectedTable = null;
+  document.querySelectorAll('.table-card').forEach(card => {
+    card.style.display = '';
+    card.classList.remove('selected', 'related', 'dimmed');
+  });
+  document.querySelectorAll('.legend-item').forEach(item => item.classList.remove('dimmed'));
+  document.querySelectorAll('.group-section').forEach(section => section.style.display = '');
+  drawFKLines();
+}
+
+function onToggleCollapse() {
+  collapsed = !collapsed;
+  document.getElementById('btn-expand').textContent = collapsed ? 'Expand All' : 'Collapse All';
+  document.querySelectorAll('.card-columns').forEach(el => {
+    el.style.display = collapsed ? 'none' : '';
+  });
+  setTimeout(drawFKLines, 50);
+}
+
+function onToggleFKLines() {
+  showFKLines = !showFKLines;
+  document.getElementById('btn-fk-lines').classList.toggle('active', showFKLines);
+  drawFKLines();
+}
+
+function showTooltip(e, tbl) {
+  const tip = document.getElementById('tooltip');
+  const fksFrom = DATA.fks.filter(f => f.from_table === tbl.name);
+  const fksTo = DATA.fks.filter(f => f.to_table === tbl.name);
+
+  let html = `<h3>${tbl.name}</h3>`;
+  html += `<div>${tbl.columns.length} columns &middot; ${tbl.rows.toLocaleString()} rows &middot; ${tbl.size}</div>`;
+  html += `<div>${tbl.indexes} indexes &middot; ${tbl.pks.length} PK cols &middot; ${tbl.fk_cols.length} FK cols</div>`;
+
+  if (fksFrom.length) {
+    html += `<div class="tt-section"><div class="tt-label">References (FK out)</div>`;
+    fksFrom.forEach(f => {
+      html += `<div class="tt-fk">${f.from_column} &rarr; ${f.to_table}.${f.to_column}</div>`;
+    });
+    html += '</div>';
+  }
+  if (fksTo.length) {
+    html += `<div class="tt-section"><div class="tt-label">Referenced by (FK in)</div>`;
+    fksTo.forEach(f => {
+      html += `<div class="tt-fk">${f.from_table}.${f.from_column} &rarr; ${f.to_column}</div>`;
+    });
+    html += '</div>';
+  }
+
+  tip.innerHTML = html;
+  tip.style.display = 'block';
+
+  const rect = tip.getBoundingClientRect();
+  let x = e.clientX + 16;
+  let y = e.clientY + 16;
+  if (x + rect.width > window.innerWidth) x = e.clientX - rect.width - 16;
+  if (y + rect.height > window.innerHeight) y = e.clientY - rect.height - 16;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').style.display = 'none';
+}
+
+// --- FK Lines (SVG) ---
+
+function drawFKLines() {
+  const svg = document.getElementById('fk-svg');
+  svg.innerHTML = '';
+  if (!showFKLines) return;
+
+  const container = document.getElementById('schema-container');
+  const containerRect = container.getBoundingClientRect();
+
+  // Create arrowhead marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+  const colors = ['#60a5fa', '#f59e0b'];
+  colors.forEach((color, i) => {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', 'arrow-' + i);
+    marker.setAttribute('viewBox', '0 0 10 7');
+    marker.setAttribute('refX', '10');
+    marker.setAttribute('refY', '3.5');
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('orient', 'auto-start-reverse');
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+    polygon.setAttribute('fill', color);
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  });
+  svg.appendChild(defs);
+
+  // Update SVG dimensions
+  svg.style.width = container.scrollWidth + 'px';
+  svg.style.height = container.scrollHeight + 'px';
+
+  for (const fk of DATA.fks) {
+    const fromCard = document.getElementById('card-' + fk.from_table);
+    const toCard = document.getElementById('card-' + fk.to_table);
+    if (!fromCard || !toCard) continue;
+    if (fromCard.style.display === 'none' || toCard.style.display === 'none') continue;
+
+    const fromRect = fromCard.getBoundingClientRect();
+    const toRect = toCard.getBoundingClientRect();
+
+    // Check if cards are visible
+    if (fromRect.width === 0 || toRect.width === 0) continue;
+
+    const highlighted = selectedTable && (fk.from_table === selectedTable || fk.to_table === selectedTable);
+    if (selectedTable && !highlighted) continue;
+
+    // Connection points - center of card edges
+    let x1, y1, x2, y2;
+    const fromCx = fromRect.left + fromRect.width / 2 - containerRect.left + container.scrollLeft;
+    const fromCy = fromRect.top + fromRect.height / 2 - containerRect.top + container.scrollTop;
+    const toCx = toRect.left + toRect.width / 2 - containerRect.left + container.scrollLeft;
+    const toCy = toRect.top + toRect.height / 2 - containerRect.top + container.scrollTop;
+
+    // Self-reference
+    if (fk.from_table === fk.to_table) {
+      x1 = fromRect.right - containerRect.left + container.scrollLeft;
+      y1 = fromRect.top + fromRect.height * 0.3 - containerRect.top + container.scrollTop;
+      x2 = fromRect.right - containerRect.left + container.scrollLeft;
+      y2 = fromRect.top + fromRect.height * 0.7 - containerRect.top + container.scrollTop;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      const d = `M${x1},${y1} C${x1+50},${y1} ${x2+50},${y2} ${x2},${y2}`;
+      path.setAttribute('d', d);
+      path.setAttribute('stroke', highlighted ? '#f59e0b' : '#60a5fa');
+      path.setAttribute('class', 'fk-line' + (highlighted ? ' highlighted' : ''));
+      path.setAttribute('marker-end', `url(#arrow-${highlighted ? 1 : 0})`);
+      svg.appendChild(path);
+      continue;
+    }
+
+    // Determine best connection points
+    const dx = toCx - fromCx;
+    const dy = toCy - fromCy;
+
+    if (Math.abs(dx) > Math.abs(dy)) {
+      // Horizontal connection
+      if (dx > 0) {
+        x1 = fromRect.right - containerRect.left + container.scrollLeft;
+        x2 = toRect.left - containerRect.left + container.scrollLeft;
+      } else {
+        x1 = fromRect.left - containerRect.left + container.scrollLeft;
+        x2 = toRect.right - containerRect.left + container.scrollLeft;
+      }
+      y1 = fromCy;
+      y2 = toCy;
+    } else {
+      // Vertical connection
+      x1 = fromCx;
+      x2 = toCx;
+      if (dy > 0) {
+        y1 = fromRect.bottom - containerRect.top + container.scrollTop;
+        y2 = toRect.top - containerRect.top + container.scrollTop;
+      } else {
+        y1 = fromRect.top - containerRect.top + container.scrollTop;
+        y2 = toRect.bottom - containerRect.top + container.scrollTop;
+      }
+    }
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    let d;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      d = `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`;
+    } else {
+      d = `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`;
+    }
+    path.setAttribute('d', d);
+    path.setAttribute('stroke', highlighted ? '#f59e0b' : '#60a5fa');
+    path.setAttribute('class', 'fk-line' + (highlighted ? ' highlighted' : ''));
+    path.setAttribute('marker-end', `url(#arrow-${highlighted ? 1 : 0})`);
+    svg.appendChild(path);
+  }
+}
+
+// --- Helpers ---
+
+function fmtRows(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return n.toString();
+}
+
+// --- Boot ---
+init();
+</script>
+</body>
+</html>
