@@ -19,13 +19,16 @@ CREATE OR REPLACE FUNCTION upsert_worker_heartbeat(
 DECLARE
     v_command VARCHAR(50);
 BEGIN
-    -- Atomically read and clear any pending command
-    UPDATE worker_heartbeat
-    SET pending_command = NULL
-    WHERE worker_id = p_worker_id AND pending_command IS NOT NULL
-    RETURNING pending_command INTO v_command;
+    -- Read the current pending command BEFORE clearing it.
+    -- FOR UPDATE locks the row so the value cannot change between read and clear.
+    -- NOTE: RETURNING after SET pending_command = NULL would return NULL (post-update
+    -- value), so we must SELECT first to capture the pre-update value.
+    SELECT pending_command INTO v_command
+    FROM worker_heartbeat
+    WHERE worker_id = p_worker_id
+    FOR UPDATE;
 
-    -- Upsert the heartbeat
+    -- Upsert the heartbeat, explicitly clearing pending_command
     INSERT INTO worker_heartbeat (
         worker_id, hostname, code_version, job_types,
         status, active_jobs, started_at, last_heartbeat
@@ -34,13 +37,14 @@ BEGIN
         p_status, p_active_jobs, p_started_at, NOW()
     )
     ON CONFLICT (worker_id) DO UPDATE SET
-        hostname       = EXCLUDED.hostname,
-        code_version   = EXCLUDED.code_version,
-        job_types      = EXCLUDED.job_types,
-        status         = EXCLUDED.status,
-        active_jobs    = EXCLUDED.active_jobs,
-        started_at     = EXCLUDED.started_at,
-        last_heartbeat = NOW();
+        hostname        = EXCLUDED.hostname,
+        code_version    = EXCLUDED.code_version,
+        job_types       = EXCLUDED.job_types,
+        status          = EXCLUDED.status,
+        active_jobs     = EXCLUDED.active_jobs,
+        started_at      = EXCLUDED.started_at,
+        last_heartbeat  = NOW(),
+        pending_command = NULL;
 
     RETURN v_command;
 END;
