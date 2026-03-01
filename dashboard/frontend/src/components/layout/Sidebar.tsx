@@ -20,6 +20,7 @@ import {
   Lock,
   Activity,
   Bot,
+  Crosshair,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -42,6 +43,7 @@ const mainNavItems: NavItem[] = [
   { icon: FileText, label: 'Documents', path: '/documents', minTier: 'basic' },
   { icon: Image, label: 'Media', path: '/media', minTier: 'basic' },
   { icon: MapPin, label: 'Map', path: '/map', minTier: 'basic' },
+  { icon: Crosshair, label: 'Investigation', path: '/investigation', minTier: 'basic' },
   { icon: MessageSquare, label: 'Communications', path: '/communications', minTier: 'basic' },
   { icon: Clipboard, label: 'Evidence', path: '/evidence', minTier: 'basic' },
 ];

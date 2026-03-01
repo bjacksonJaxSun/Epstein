@@ -22,3 +22,4 @@ export { PipelinePage } from './PipelinePage';
 export { LoginPage } from './LoginPage';
 export { UnauthorizedPage } from './UnauthorizedPage';
 export { LandingPage } from './LandingPage';
+export { InvestigationPage } from './InvestigationPage';

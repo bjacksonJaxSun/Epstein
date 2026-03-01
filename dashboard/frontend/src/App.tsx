@@ -28,6 +28,7 @@ import {
   LoginPage,
   UnauthorizedPage,
   LandingPage,
+  InvestigationPage,
 } from './pages';
 
 const queryClient = new QueryClient({
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="boards" element={<BoardsPage />} />
                 <Route path="bookmarks" element={<BookmarksPage />} />
                 <Route path="search" element={<SearchPage />} />
+                <Route path="investigation" element={<InvestigationPage />} />
               </Route>
 
               {/* Premium tier - AI features */}
