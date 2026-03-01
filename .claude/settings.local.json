@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File ./copy-files-from-vm.ps1)",
+      "Bash(ssh:*)",
+      "Bash(python3:*)",
+      "Bash(xxd:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(winget install:*)",
+      "Bash(export PATH=\"/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin:$PATH\")",
+      "Bash(az:*)",
+      "Bash(powershell -Command \"[Environment]::GetEnvironmentVariable\\(''Path'', ''Machine''\\)\")",
+      "Bash(tr:*)",
+      "Bash(dir:*)",
+      "Bash(cmd /c \"dir C:\\\\Development\\\\EpsteinDownloader\\\\Scripts 2>&1\")",
+      "Bash(cmd /c \"dir C:\\\\Development\\\\EpsteinDownloader\\\\ /b 2>&1\")",
+      "Bash(cmd /c \"dir /b /s C:\\\\Development\\\\EpsteinDownloader\\\\*.py C:\\\\Development\\\\EpsteinDownloader\\\\*.sh C:\\\\Development\\\\EpsteinDownloader\\\\*.ps1 2>&1 | head -30\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''C:\\\\Development\\\\EpsteinDownloader'' -Recurse -File | Select-Object -First 30 FullName\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path ''C:\\\\Development\\\\EpsteinDownloader'' -Recurse -File | Where-Object { $_Name -match ''azure|restore|download'' -or $_Extension -in ''.py'',''.sh'',''.ps1'' } | Select-Object FullName | Format-Table -AutoSize\")"
+    ]
+  }
+}

@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Epstein Files Research Platform — Business Plan</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0d1b2a;
+      --blue:   #1a3a5c;
+      --accent: #c8a84b;
+      --light:  #f5f4f0;
+      --border: #d0cfc9;
+      --text:   #1e1e1e;
+      --muted:  #555;
+      --green:  #2e7d4f;
+      --red:    #8b1a1a;
+    }
+
+    body {
+      font-family: 'Georgia', serif;
+      font-size: 11pt;
+      line-height: 1.65;
+      color: var(--text);
+      background: #fff;
+    }
+
+    /* ── Page Layout ─────────────────────────────────────── */
+    .page {
+      max-width: 850px;
+      margin: 0 auto;
+      padding: 0 40px;
+    }
+
+    /* ── Cover Page ─────────────────────────────────────── */
+    .cover {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background: var(--navy);
+      color: #fff;
+      padding: 80px 60px;
+      page-break-after: always;
+    }
+
+    .cover .label {
+      font-family: 'Arial', sans-serif;
+      font-size: 9pt;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    .cover h1 {
+      font-size: 34pt;
+      font-weight: normal;
+      line-height: 1.2;
+      margin-bottom: 16px;
+      color: #fff;
+    }
+
+    .cover h1 span {
+      color: var(--accent);
+    }
+
+    .cover .subtitle {
+      font-size: 14pt;
+      color: #aab8c4;
+      margin-bottom: 60px;
+      font-style: italic;
+    }
+
+    .cover .meta {
+      border-top: 1px solid #2a4a6a;
+      padding-top: 24px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .cover .meta-item label {
+      display: block;
+      font-family: 'Arial', sans-serif;
+      font-size: 8pt;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    .cover .meta-item span {
+      font-size: 11pt;
+      color: #c8d8e4;
+    }
+
+    .cover .confidential {
+      margin-top: 50px;
+      font-family: 'Arial', sans-serif;
+      font-size: 8pt;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #4a6a8a;
+    }
+
+    /* ── TOC ─────────────────────────────────────── */
+    .toc {
+      padding: 60px 0;
+      page-break-after: always;
+    }
+
+    .toc h2 {
+      font-size: 14pt;
+      font-family: 'Arial', sans-serif;
+      color: var(--blue);
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px dotted var(--border);
+    }
+
+    .toc-item .toc-num {
+      font-family: 'Arial', sans-serif;
+      font-size: 9pt;
+      color: var(--accent);
+      margin-right: 12px;
+      min-width: 24px;
+    }
+
+    .toc-item .toc-title {
+      flex: 1;
+    }
+
+    .toc-item .toc-sub {
+      font-size: 9.5pt;
+      color: var(--muted);
+      padding-left: 36px;
+    }
+
+    /* ── Sections ─────────────────────────────────────── */
+    .section {
+      padding: 50px 0 30px;
+      page-break-inside: avoid;
+    }
+
+    .section + .section {
+      border-top: 1px solid var(--border);
+    }
+
+    .section-header {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .section-num {
+      font-family: 'Arial', sans-serif;
+      font-size: 22pt;
+      color: var(--accent);
+      font-weight: bold;
+      line-height: 1;
+    }
+
+    .section h2 {
+      font-size: 16pt;
+      font-weight: normal;
+      color: var(--navy);
+      letter-spacing: 0.5px;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-family: 'Arial', sans-serif;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin: 24px 0 10px;
+    }
+
+    p {
+      margin-bottom: 12px;
+    }
+
+    ul, ol {
+      margin: 8px 0 14px 20px;
+    }
+
+    li {
+      margin-bottom: 5px;
+    }
+
+    strong {
+      color: var(--navy);
+    }
+
+    /* ── Callout / Highlight Box ─────────────────────────── */
+    .callout {
+      background: var(--light);
+      border-left: 4px solid var(--accent);
+      padding: 16px 20px;
+      margin: 20px 0;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--navy);
+      font-family: 'Arial', sans-serif;
+      font-size: 9.5pt;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ── Tables ─────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 9.5pt;
+    }
+
+    thead tr {
+      background: var(--navy);
+      color: #fff;
+    }
+
+    thead th {
+      padding: 9px 12px;
+      text-align: left;
+      font-family: 'Arial', sans-serif;
+      font-size: 8.5pt;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: normal;
+    }
+
+    thead th.right { text-align: right; }
+
+    tbody tr:nth-child(even) { background: var(--light); }
+
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    tbody td.right { text-align: right; font-family: 'Courier New', monospace; font-size: 9pt; }
+    tbody td.center { text-align: center; }
+    tbody td.bold { font-weight: bold; color: var(--navy); }
+    tbody td.green { color: var(--green); font-weight: bold; font-family: 'Courier New', monospace; }
+    tbody td.accent { color: #8a6a00; font-weight: bold; }
+
+    .table-note {
+      font-size: 8.5pt;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: -16px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Phase Cards ─────────────────────────────────────── */
+    .phases {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .phase-card {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .phase-card .phase-head {
+      background: var(--blue);
+      color: #fff;
+      padding: 12px 16px;
+      font-family: 'Arial', sans-serif;
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+
+    .phase-card .phase-head span {
+      display: block;
+      font-size: 14pt;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--accent);
+      font-family: 'Georgia', serif;
+      margin-top: 2px;
+    }
+
+    .phase-card .phase-body {
+      padding: 14px 16px;
+      font-size: 9.5pt;
+    }
+
+    .phase-card .phase-body li {
+      margin-bottom: 4px;
+    }
+
+    /* ── Timeline ────────────────────────────────────────── */
+    .timeline {
+      margin: 20px 0;
+      position: relative;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 90px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .timeline-date {
+      min-width: 80px;
+      text-align: right;
+      font-family: 'Arial', sans-serif;
+      font-size: 8.5pt;
+      color: var(--muted);
+      padding-top: 2px;
+    }
+
+    .timeline-dot {
+      position: relative;
+      z-index: 1;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px var(--accent);
+      margin-top: 3px;
+      flex-shrink: 0;
+    }
+
+    .timeline-content {
+      flex: 1;
+    }
+
+    .timeline-content strong {
+      display: block;
+      font-family: 'Arial', sans-serif;
+      font-size: 9.5pt;
+      color: var(--navy);
+      margin-bottom: 3px;
+    }
+
+    .timeline-content p {
+      font-size: 9pt;
+      color: var(--muted);
+      margin-bottom: 0;
+    }
+
+    /* ── KPI Summary Boxes ─────────────────────────────── */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .kpi {
+      background: var(--navy);
+      color: #fff;
+      padding: 16px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .kpi .kpi-value {
+      font-size: 18pt;
+      color: var(--accent);
+      font-family: 'Arial', sans-serif;
+      font-weight: bold;
+      line-height: 1.1;
+    }
+
+    .kpi .kpi-label {
+      font-size: 7.5pt;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #aab8c4;
+      margin-top: 5px;
+      font-family: 'Arial', sans-serif;
+    }
+
+    /* ── Risk Matrix ─────────────────────────────────────── */
+    .risk-high { background: #f8e8e8; }
+    .risk-med  { background: #fdf5e0; }
+    .risk-low  { background: #eaf4ee; }
+
+    .risk-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: 'Arial', sans-serif;
+      font-size: 7.5pt;
+      font-weight: bold;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .badge-high { background: #c0392b; color: #fff; }
+    .badge-med  { background: #e67e22; color: #fff; }
+    .badge-low  { background: #27ae60; color: #fff; }
+
+    /* ── Footer ─────────────────────────────────────── */
+    .footer {
+      margin-top: 40px;
+      padding: 20px 0;
+      border-top: 1px solid var(--border);
+      font-size: 8pt;
+      color: var(--muted);
+      font-family: 'Arial', sans-serif;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* ── Print Styles ─────────────────────────────────────── */
+    @media print {
+      body { font-size: 10pt; }
+
+      .cover {
+        min-height: 100vh;
+        page-break-after: always;
+      }
+
+      .toc { page-break-after: always; }
+
+      .section { page-break-inside: avoid; }
+
+      .phases { page-break-inside: avoid; }
+
+      .kpi-row { page-break-inside: avoid; }
+
+      table { page-break-inside: avoid; }
+
+      @page {
+        margin: 18mm 16mm 18mm 16mm;
+        size: letter portrait;
+      }
+
+      @page :first {
+        margin: 0;
+      }
+
+      .no-print { display: none !important; }
+    }
+
+    /* ── Print Button ─────────────────────────────────────── */
+    .print-bar {
+      background: var(--navy);
+      color: #fff;
+      padding: 12px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'Arial', sans-serif;
+      font-size: 9pt;
+    }
+
+    .print-btn {
+      background: var(--accent);
+      color: var(--navy);
+      border: none;
+      padding: 8px 20px;
+      font-family: 'Arial', sans-serif;
+      font-size: 9pt;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .print-btn:hover { background: #d4b85a; }
+  </style>
+</head>
+<body>
+
+<!-- Print Bar (screen only) -->
+<div class="print-bar no-print">
+  <span>Epstein Files Research Platform — Business Plan (CONFIDENTIAL)</span>
+  <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     COVER PAGE
+════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="label">Business Plan — Confidential</div>
+  <h1>Epstein Files<br><span>Research Platform</span></h1>
+  <div class="subtitle">Monetization Strategy &amp; 24-Month Financial Model</div>
+
+  <div class="meta">
+    <div class="meta-item">
+      <label>Planned Launch</label>
+      <span>March 13, 2026</span>
+    </div>
+    <div class="meta-item">
+      <label>Plan Date</label>
+      <span>February 27, 2026</span>
+    </div>
+    <div class="meta-item">
+      <label>Strategy</label>
+      <span>Media-First → Public Rollout</span>
+    </div>
+    <div class="meta-item">
+      <label>Projected Year 1 Revenue</label>
+      <span>$270,000 – $380,000</span>
+    </div>
+  </div>
+
+  <div class="confidential">Confidential — Not for Distribution</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     TABLE OF CONTENTS
+════════════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="toc">
+    <h2>Table of Contents</h2>
+
+    <div class="toc-item">
+      <span class="toc-num">1</span>
+      <span class="toc-title">Executive Summary</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">2</span>
+      <span class="toc-title">Market Opportunity</span>
+    </div>
+    <div class="toc-item toc-sub">
+      <span class="toc-num"></span>
+      <span class="toc-title">Relevance Window · Addressable Market · Competitive Landscape</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">3</span>
+      <span class="toc-title">Product &amp; Technology</span>
+    </div>
+    <div class="toc-item toc-sub">
+      <span class="toc-num"></span>
+      <span class="toc-title">Core Features · Technical Architecture · Differentiators</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">4</span>
+      <span class="toc-title">Go-to-Market Strategy</span>
+    </div>
+    <div class="toc-item toc-sub">
+      <span class="toc-num"></span>
+      <span class="toc-title">Phase 1: Media-First Access · Phase 2: Public Launch · Pricing Tiers</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">5</span>
+      <span class="toc-title">24-Month Financial Model</span>
+    </div>
+    <div class="toc-item toc-sub">
+      <span class="toc-num"></span>
+      <span class="toc-title">Revenue Projections · Cost Structure · Upside Scenarios</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">6</span>
+      <span class="toc-title">Operating Costs &amp; Unit Economics</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">7</span>
+      <span class="toc-title">Risk Analysis</span>
+    </div>
+    <div class="toc-item">
+      <span class="toc-num">8</span>
+      <span class="toc-title">Milestone Timeline</span>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 1 — EXECUTIVE SUMMARY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">1</div>
+      <h2>Executive Summary</h2>
+    </div>
+
+    <p>
+      The Epstein Files Research Platform is a proprietary AI-powered document analysis tool
+      built on the 3.5 million pages released by the U.S. Department of Justice on January 30, 2026
+      under the Epstein Files Transparency Act. While the source documents are public, they are
+      functionally inaccessible — a 3.5 million page corpus that no individual can meaningfully
+      search without purpose-built tooling.
+    </p>
+    <p>
+      This platform provides semantic search, entity extraction, network relationship mapping,
+      and AI-powered query across the entire corpus. The value proposition is simple:
+      <strong>we searched 3.5 million pages so researchers, journalists, and the public do not have to.</strong>
+    </p>
+
+    <div class="callout">
+      <strong>Timing Advantage</strong>
+      The DOJ released the bulk of the Epstein files on January 30, 2026 — 28 days ago.
+      Congressional hearings, ongoing redaction controversies, and active civil litigation
+      keep this story in national headlines weekly. The relevance window for peak monetization
+      is approximately 6–18 months from today.
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-value">3.5M</div>
+        <div class="kpi-label">DOJ Pages Indexed</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">42M</div>
+        <div class="kpi-label">True Crime Audience (US)</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">~$270K</div>
+        <div class="kpi-label">Year 1 Revenue (Base)</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-value">&gt;90%</div>
+        <div class="kpi-label">Gross Margin</div>
+      </div>
+    </div>
+
+    <p>
+      The go-to-market strategy is phased: <strong>Phase 1</strong> targets media organizations
+      and professional researchers at premium pricing, building credibility and case studies.
+      <strong>Phase 2</strong> opens access to the general public via subscription tiers,
+      leveraging media coverage as social proof and using the built subscriber list as the
+      primary acquisition channel.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 2 — MARKET OPPORTUNITY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">2</div>
+      <h2>Market Opportunity</h2>
+    </div>
+
+    <h3>Relevance Window</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Period</th>
+          <th>Timeframe</th>
+          <th>Key Drivers</th>
+          <th class="center">Demand Level</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="bold">Peak</td>
+          <td>Now → Aug 2026</td>
+          <td>DOJ dump still fresh; Congressional hearings; faulty redactions controversy; civil litigation</td>
+          <td class="center accent">▲ Very High</td>
+        </tr>
+        <tr>
+          <td class="bold">Sustained</td>
+          <td>Sep 2026 → Dec 2027</td>
+          <td>Congressional committee reports; civil suits; Maxwell proceedings; political cycle references</td>
+          <td class="center" style="color:#8a6a00;">▶ High</td>
+        </tr>
+        <tr>
+          <td class="bold">Long Tail</td>
+          <td>2028+</td>
+          <td>Evergreen true crime interest; academic research; new political revelations</td>
+          <td class="center" style="color:#555;">▼ Moderate</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Addressable Market Segments</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th>Estimated US Size</th>
+          <th>Willingness to Pay</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="bold">True crime enthusiasts</td>
+          <td>42 million monthly</td>
+          <td>$5–15/mo</td>
+          <td>Largest segment; podcast and subscription native</td>
+        </tr>
+        <tr>
+          <td class="bold">Political researchers / activists</td>
+          <td>~5 million engaged</td>
+          <td>$10–25/mo</td>
+          <td>Bipartisan — left and right both invested in this story</td>
+        </tr>
+        <tr>
+          <td class="bold">Independent journalists / authors</td>
+          <td>~50,000 active</td>
+          <td>$25–75/mo</td>
+          <td>High value; book researchers, Substack writers</td>
+        </tr>
+        <tr>
+          <td class="bold">News organizations</td>
+          <td>~500 relevant outlets</td>
+          <td>$500–2,500/mo</td>
+          <td>Investigative desks, digital-first outlets</td>
+        </tr>
+        <tr>
+          <td class="bold">Law firms / opposition research</td>
+          <td>~200 active on Epstein</td>
+          <td>$1,000–5,000/mo</td>
+          <td>Civil litigation, background research firms</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Competitive Landscape</h3>
+    <p>
+      No direct competitor offers AI-powered search of the Epstein DOJ corpus. Indirect
+      competition comes from free-but-inaccessible sources (DOJ website bulk downloads)
+      and general legal/news databases that do not contain this material.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Competitor</th>
+          <th>What They Offer</th>
+          <th>Epstein Coverage</th>
+          <th>Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>DOJ Website</td>
+          <td>Raw document downloads</td>
+          <td>Full (unsearchable bulk)</td>
+          <td>Free</td>
+        </tr>
+        <tr>
+          <td>LexisNexis / Factiva</td>
+          <td>News archives, legal records</td>
+          <td>News only, not DOJ docs</td>
+          <td>$7,000+/yr</td>
+        </tr>
+        <tr>
+          <td>OCCRP Aleph</td>
+          <td>Global corruption records</td>
+          <td>Not indexed</td>
+          <td>Free (nonprofit)</td>
+        </tr>
+        <tr>
+          <td class="bold">This Platform</td>
+          <td class="bold">AI search + entity/network analysis of all 3.5M DOJ pages</td>
+          <td class="bold green">Complete + AI-analyzed</td>
+          <td class="bold">$9–2,500/mo</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 3 — PRODUCT & TECHNOLOGY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">3</div>
+      <h2>Product &amp; Technology</h2>
+    </div>
+
+    <h3>Core Features</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th>Description</th>
+          <th class="center">Tier Available</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="bold">AI Semantic Search</td>
+          <td>Natural language queries across full 3.5M page corpus via vector embeddings</td>
+          <td class="center">Researcher+</td>
+        </tr>
+        <tr>
+          <td class="bold">Keyword Search</td>
+          <td>Full-text search with document preview and context highlighting</td>
+          <td class="center">Enthusiast+</td>
+        </tr>
+        <tr>
+          <td class="bold">Entity Network Graph</td>
+          <td>Visual relationship mapping of people, organizations, and locations</td>
+          <td class="center">Researcher+</td>
+        </tr>
+        <tr>
+          <td class="bold">Document Browser</td>
+          <td>Browse, read, and annotate source documents with metadata</td>
+          <td class="center">Enthusiast+</td>
+        </tr>
+        <tr>
+          <td class="bold">People &amp; Connections DB</td>
+          <td>Extracted entity database with document frequency and co-occurrence</td>
+          <td class="center">Enthusiast+</td>
+        </tr>
+        <tr>
+          <td class="bold">AI Q&amp;A (RAG)</td>
+          <td>Ask questions and receive sourced answers with document citations</td>
+          <td class="center">Researcher+</td>
+        </tr>
+        <tr>
+          <td class="bold">Export &amp; API Access</td>
+          <td>Bulk data export, JSON API for integration into third-party workflows</td>
+          <td class="center">Media / Enterprise</td>
+        </tr>
+        <tr>
+          <td class="bold">Alerts</td>
+          <td>Email alerts when new documents are indexed or specific names appear</td>
+          <td class="center">Researcher+</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Technical Architecture</h3>
+    <ul>
+      <li><strong>Backend:</strong> .NET 9 Web API with PostgreSQL 17 (with pgvector for embeddings)</li>
+      <li><strong>Frontend:</strong> React / TypeScript with real-time pipeline dashboard</li>
+      <li><strong>AI Layer:</strong> Vector embeddings for semantic search; RAG pipeline for Q&amp;A</li>
+      <li><strong>Auth:</strong> JWT-based with role-tiered access (freemium → basic → premium → media/enterprise)</li>
+      <li><strong>Ingestion:</strong> Python extraction pipeline with OCR, chunking, and embedding workers</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Key Differentiator</strong>
+      The platform is fully operational. The document ingestion, OCR, vector embedding, and
+      semantic search pipeline is built and running. This is a go-to-market and packaging
+      exercise, not a build exercise. Time-to-launch is measured in days, not months.
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 4 — GO-TO-MARKET STRATEGY
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">4</div>
+      <h2>Go-to-Market Strategy</h2>
+    </div>
+
+    <p>
+      The strategy is deliberately sequenced. <strong>Phase 1</strong> prioritizes quality over
+      volume — landing credible media partners before any public announcement. Their subsequent
+      reporting becomes the marketing engine for <strong>Phase 2</strong>, the public rollout.
+    </p>
+
+    <div class="phases">
+      <div class="phase-card">
+        <div class="phase-head">
+          Phase 1
+          <span>Media &amp; Professional Access</span>
+        </div>
+        <div class="phase-body">
+          <strong>Duration:</strong> Launch (Mar 13) through ~June 2026<br><br>
+          <strong>Who:</strong>
+          <ul>
+            <li>Investigative journalists (Substack, independent)</li>
+            <li>Digital news outlets with investigative desks</li>
+            <li>Podcast producers covering the story</li>
+            <li>Authors / book researchers</li>
+            <li>Law firms with active civil cases</li>
+          </ul>
+          <br>
+          <strong>How:</strong>
+          <ul>
+            <li>Direct outreach — email and LinkedIn</li>
+            <li>30-day free trials for journalists</li>
+            <li>Founding Partner rate: $500/mo (locked for 12 months)</li>
+            <li>No public announcement until 3+ partners signed</li>
+          </ul>
+          <br>
+          <strong>Goal:</strong> 8–12 paying media/pro accounts, 2–3 published stories that cite the platform.
+        </div>
+      </div>
+
+      <div class="phase-card">
+        <div class="phase-head">
+          Phase 2
+          <span>Public Launch</span>
+        </div>
+        <div class="phase-body">
+          <strong>Duration:</strong> ~Month 4 onward (July 2026+)<br><br>
+          <strong>Who:</strong>
+          <ul>
+            <li>General public / true crime enthusiasts</li>
+            <li>Political researchers and activists</li>
+            <li>Students, academics</li>
+            <li>Anyone following the Epstein story</li>
+          </ul>
+          <br>
+          <strong>How:</strong>
+          <ul>
+            <li>Public landing page + free signup tier</li>
+            <li>Launch on X/Twitter with specific findings as hooks</li>
+            <li>"As featured in [Outlet]" social proof</li>
+            <li>Beehiiv/Substack email list as nurture → paid funnel</li>
+            <li>Weekly newsletter: AI-extracted findings from the corpus</li>
+          </ul>
+          <br>
+          <strong>Goal:</strong> 20,000+ free list, 2,000+ paid subscribers within 90 days of launch.
+        </div>
+      </div>
+    </div>
+
+    <h3>Pricing Tiers</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Monthly Price</th>
+          <th>Target Customer</th>
+          <th>Key Features</th>
+          <th class="center">Phase Available</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="bold">Free</td>
+          <td class="right">$0</td>
+          <td>Anyone</td>
+          <td>Basic keyword search (rate-limited), document count stats, email signup</td>
+          <td class="center">Phase 2</td>
+        </tr>
+        <tr>
+          <td class="bold">Enthusiast</td>
+          <td class="right">$9/mo</td>
+          <td>True crime / political followers</td>
+          <td>Full keyword search, document browser, people database, network preview</td>
+          <td class="center">Phase 2</td>
+        </tr>
+        <tr>
+          <td class="bold">Researcher</td>
+          <td class="right">$49/mo</td>
+          <td>Journalists, authors, podcasters</td>
+          <td>AI semantic search, full network graph, RAG Q&amp;A, alerts, export (limited)</td>
+          <td class="center">Phase 1 + 2</td>
+        </tr>
+        <tr>
+          <td class="bold">Media Outlet</td>
+          <td class="right">$500–1,500/mo</td>
+          <td>Newsrooms, investigative desks</td>
+          <td>All features + API access, unlimited seats (per outlet), priority support</td>
+          <td class="center">Phase 1 (only)</td>
+        </tr>
+        <tr>
+          <td class="bold">Enterprise</td>
+          <td class="right">$2,500/mo</td>
+          <td>Law firms, research firms, PACs</td>
+          <td>All features + bulk export, dedicated support, custom data queries</td>
+          <td class="center">Phase 1 + 2</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="table-note">Founding Partner rate: $500/mo locked for 12 months for first 10 media outlets signing in Phase 1.</p>
+
+    <h3>Content Marketing Engine</h3>
+    <p>
+      The most cost-effective acquisition channel is publishing specific, shareable findings
+      directly from the corpus. Each "finding post" on X/Twitter with a concrete, verifiable
+      claim (e.g., <em>"Document #EFTA-2307 names [individual] in 14 separate flight logs —
+      here's the AI-extracted summary"</em>) drives free signups organically. Target: 2–3
+      posts per week during peak window.
+    </p>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 5 — 24-MONTH FINANCIAL MODEL
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">5</div>
+      <h2>24-Month Financial Model</h2>
+    </div>
+
+    <h3>Monthly Recurring Revenue Projection</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Phase</th>
+          <th class="right">Enthusiast<br>($9)</th>
+          <th class="right">Researcher<br>($49)</th>
+          <th class="right">Media<br>(avg $800)</th>
+          <th class="right">Enterprise<br>($2,500)</th>
+          <th class="right">MRR</th>
+          <th class="right">Cum. Revenue</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1 — Mar 2026</td>
+          <td>Phase 1</td>
+          <td class="right">—</td>
+          <td class="right">10 × $490</td>
+          <td class="right">2 × $1,600</td>
+          <td class="right">0</td>
+          <td class="right bold">$4,690</td>
+          <td class="right">$4,690</td>
+        </tr>
+        <tr>
+          <td>2 — Apr</td>
+          <td>Phase 1</td>
+          <td class="right">—</td>
+          <td class="right">22 × $1,078</td>
+          <td class="right">4 × $3,200</td>
+          <td class="right">0</td>
+          <td class="right bold">$8,478</td>
+          <td class="right">$13,168</td>
+        </tr>
+        <tr>
+          <td>3 — May</td>
+          <td>Phase 1</td>
+          <td class="right">—</td>
+          <td class="right">40 × $1,960</td>
+          <td class="right">7 × $5,600</td>
+          <td class="right">1 × $2,500</td>
+          <td class="right bold">$14,060</td>
+          <td class="right">$27,228</td>
+        </tr>
+        <tr style="background:#e8f4fd;">
+          <td colspan="8" style="padding:8px 12px; font-family:Arial,sans-serif; font-size:8.5pt; letter-spacing:1px; text-transform:uppercase; color:#1a3a5c;">
+            ▶ Public Launch — Phase 2 begins (approx. July 2026)
+          </td>
+        </tr>
+        <tr>
+          <td>4 — Jun</td>
+          <td>Phase 2 Launch</td>
+          <td class="right">400 × $3,600</td>
+          <td class="right">55 × $2,695</td>
+          <td class="right">9 × $7,200</td>
+          <td class="right">1 × $2,500</td>
+          <td class="right bold">$15,995</td>
+          <td class="right">$43,223</td>
+        </tr>
+        <tr>
+          <td>5 — Jul</td>
+          <td>Phase 2</td>
+          <td class="right">900 × $8,100</td>
+          <td class="right">65 × $3,185</td>
+          <td class="right">10 × $8,000</td>
+          <td class="right">2 × $5,000</td>
+          <td class="right bold">$24,285</td>
+          <td class="right">$67,508</td>
+        </tr>
+        <tr>
+          <td>6 — Aug</td>
+          <td>Phase 2</td>
+          <td class="right">1,600 × $14,400</td>
+          <td class="right">80 × $3,920</td>
+          <td class="right">11 × $8,800</td>
+          <td class="right">2 × $5,000</td>
+          <td class="right bold">$32,120</td>
+          <td class="right">$99,628</td>
+        </tr>
+        <tr>
+          <td>7 — Sep</td>
+          <td>Phase 2 (Peak)</td>
+          <td class="right">2,400 × $21,600</td>
+          <td class="right">95 × $4,655</td>
+          <td class="right">12 × $9,600</td>
+          <td class="right">3 × $7,500</td>
+          <td class="right bold">$43,355</td>
+          <td class="right">$142,983</td>
+        </tr>
+        <tr>
+          <td>8 — Oct</td>
+          <td>Phase 2 (Peak)</td>
+          <td class="right">3,100 × $27,900</td>
+          <td class="right">105 × $5,145</td>
+          <td class="right">13 × $10,400</td>
+          <td class="right">3 × $7,500</td>
+          <td class="right bold">$50,945</td>
+          <td class="right">$193,928</td>
+        </tr>
+        <tr>
+          <td>9 — Nov</td>
+          <td>Phase 2 (Peak)</td>
+          <td class="right">3,700 × $33,300</td>
+          <td class="right">115 × $5,635</td>
+          <td class="right">13 × $10,400</td>
+          <td class="right">4 × $10,000</td>
+          <td class="right bold">$59,335</td>
+          <td class="right">$253,263</td>
+        </tr>
+        <tr>
+          <td>10 — Dec</td>
+          <td>Phase 2</td>
+          <td class="right">4,000 × $36,000</td>
+          <td class="right">120 × $5,880</td>
+          <td class="right">14 × $11,200</td>
+          <td class="right">4 × $10,000</td>
+          <td class="right bold">$63,080</td>
+          <td class="right">$316,343</td>
+        </tr>
+        <tr>
+          <td>11 — Jan 2027</td>
+          <td>Sustained</td>
+          <td class="right">3,800 × $34,200</td>
+          <td class="right">115 × $5,635</td>
+          <td class="right">14 × $11,200</td>
+          <td class="right">4 × $10,000</td>
+          <td class="right bold">$61,035</td>
+          <td class="right">$377,378</td>
+        </tr>
+        <tr>
+          <td>12 — Feb 2027</td>
+          <td>Sustained</td>
+          <td class="right">3,500 × $31,500</td>
+          <td class="right">110 × $5,390</td>
+          <td class="right">13 × $10,400</td>
+          <td class="right">4 × $10,000</td>
+          <td class="right bold">$57,290</td>
+          <td class="right">$434,668</td>
+        </tr>
+        <tr style="background:#fdf5e0; font-weight:bold;">
+          <td colspan="6" style="padding:10px 12px; color:#5a3a00;">Year 1 Total (Mar 2026 – Feb 2027)</td>
+          <td class="right accent" style="font-size:11pt;">~$434,668</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td>13–18 avg</td>
+          <td>Sustained</td>
+          <td class="right">~3,000/mo</td>
+          <td class="right">~100/mo</td>
+          <td class="right">~12/mo</td>
+          <td class="right">~3/mo</td>
+          <td class="right bold">~$48,000/mo</td>
+          <td class="right">+$288,000</td>
+        </tr>
+        <tr>
+          <td>19–24 avg</td>
+          <td>Long Tail</td>
+          <td class="right">~2,000/mo</td>
+          <td class="right">~70/mo</td>
+          <td class="right">~9/mo</td>
+          <td class="right">~2/mo</td>
+          <td class="right bold">~$30,000/mo</td>
+          <td class="right">+$180,000</td>
+        </tr>
+        <tr style="background:#e8f4e8; font-weight:bold;">
+          <td colspan="6" style="padding:10px 12px; color:#1a4a2a;">24-Month Cumulative Revenue (Base Case)</td>
+          <td class="right green" style="font-size:11pt;">~$902,668</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="table-note">Base case assumes no major viral moment. Media outlet count assumes 10% close rate on ~150 relevant outlets contacted.</p>
+
+    <h3>Upside Scenarios</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Trigger Event</th>
+          <th>Probability</th>
+          <th class="right">Incremental Revenue</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Major outlet (Fox, NYT, The Intercept) publishes story citing platform</td>
+          <td>Medium-High</td>
+          <td class="right green">+$60,000–$120,000</td>
+        </tr>
+        <tr>
+          <td>Congressional hearing or legislator publicly references tool</td>
+          <td>Low-Medium</td>
+          <td class="right green">+$40,000–$80,000</td>
+        </tr>
+        <tr>
+          <td>Viral X/Twitter post from a specific finding</td>
+          <td>High (with consistent posting)</td>
+          <td class="right green">+$20,000–$50,000</td>
+        </tr>
+        <tr>
+          <td>New document release / additional unsealing</td>
+          <td>Medium</td>
+          <td class="right green">+$30,000–$70,000</td>
+        </tr>
+        <tr>
+          <td>Book author or documentary licensing</td>
+          <td>Low-Medium</td>
+          <td class="right green">+$5,000–$30,000</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 6 — OPERATING COSTS & UNIT ECONOMICS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">6</div>
+      <h2>Operating Costs &amp; Unit Economics</h2>
+    </div>
+
+    <h3>Monthly Operating Cost Structure</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Item</th>
+          <th>Phase 1<br>(months 1–3)</th>
+          <th>Phase 2<br>(months 4–12)</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Hosting / Cloud (server + DB + CDN)</td>
+          <td class="right">$150</td>
+          <td class="right">$300–600</td>
+          <td>Scales with traffic; current stack is lean</td>
+        </tr>
+        <tr>
+          <td>AI / LLM API costs (embeddings, RAG)</td>
+          <td class="right">$50</td>
+          <td class="right">$200–500</td>
+          <td>Scales with query volume; can be cached</td>
+        </tr>
+        <tr>
+          <td>Payment processing (Stripe ~3%)</td>
+          <td class="right">$150</td>
+          <td class="right">$900–1,900</td>
+          <td>Variable; based on MRR</td>
+        </tr>
+        <tr>
+          <td>Email platform (Beehiiv / ConvertKit)</td>
+          <td class="right">$50</td>
+          <td class="right">$100–250</td>
+          <td>Scales with list size</td>
+        </tr>
+        <tr>
+          <td>Legal / compliance (one-time setup)</td>
+          <td class="right">$1,500*</td>
+          <td class="right">$100</td>
+          <td>*One-time in month 1; ongoing small retainer</td>
+        </tr>
+        <tr>
+          <td>Domain / SSL / misc</td>
+          <td class="right">$20</td>
+          <td class="right">$20</td>
+          <td>Negligible</td>
+        </tr>
+        <tr style="background:#f5f4f0; font-weight:bold;">
+          <td>Total Monthly Operating Costs</td>
+          <td class="right">~$1,920*</td>
+          <td class="right">~$1,600–3,270</td>
+          <td>*Month 1 includes legal setup</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Unit Economics (at Scale — Month 8)</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th class="right">Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>MRR (Month 8 base case)</td>
+          <td class="right green">$50,945</td>
+        </tr>
+        <tr>
+          <td>Total Operating Costs</td>
+          <td class="right" style="color:#8b1a1a;">($2,500)</td>
+        </tr>
+        <tr>
+          <td>Net Revenue</td>
+          <td class="right bold">$48,445</td>
+        </tr>
+        <tr>
+          <td>Gross Margin</td>
+          <td class="right green">~95%</td>
+        </tr>
+        <tr>
+          <td>Avg Revenue Per User (blended)</td>
+          <td class="right">~$12.40/mo</td>
+        </tr>
+        <tr>
+          <td>Customer Acquisition Cost (organic)</td>
+          <td class="right">~$0 (content-driven)</td>
+        </tr>
+        <tr>
+          <td>LTV (Enthusiast, 18-mo avg retention)</td>
+          <td class="right">~$162</td>
+        </tr>
+        <tr>
+          <td>LTV (Media Outlet, 18-mo avg)</td>
+          <td class="right">~$14,400</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 7 — RISK ANALYSIS
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">7</div>
+      <h2>Risk Analysis</h2>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Risk</th>
+          <th class="center">Severity</th>
+          <th>Mitigation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="risk-high">
+          <td><strong>Story loses news momentum</strong> — interest fades before Phase 2 generates sufficient subscribers</td>
+          <td class="center"><span class="risk-badge badge-high">High</span></td>
+          <td>Launch Phase 2 no later than Month 4. Build email list from Day 1. Diversify to general true crime angle beyond Epstein.</td>
+        </tr>
+        <tr class="risk-med">
+          <td><strong>DOJ publishes its own searchable interface</strong> for the document corpus</td>
+          <td class="center"><span class="risk-badge badge-med">Medium</span></td>
+          <td>Unlikely given government IT timelines, but hedge by emphasizing AI analysis layer — not just document hosting — as the differentiator.</td>
+        </tr>
+        <tr class="risk-med">
+          <td><strong>Legal challenge</strong> — claims of defamation via AI-extracted connections</td>
+          <td class="center"><span class="risk-badge badge-med">Medium</span></td>
+          <td>Engage lawyer before launch. All AI outputs cite source documents. Add clear disclaimer: analysis is AI-generated from public records.</td>
+        </tr>
+        <tr class="risk-med">
+          <td><strong>Subscription fatigue</strong> — market saturation makes subscriber acquisition harder</td>
+          <td class="center"><span class="risk-badge badge-med">Medium</span></td>
+          <td>Free email list first. Convert with weekly finding newsletters. Offer annual plan discount (2 months free).</td>
+        </tr>
+        <tr class="risk-low">
+          <td><strong>Infrastructure cost overrun</strong> at high query volume</td>
+          <td class="center"><span class="risk-badge badge-low">Low</span></td>
+          <td>Rate-limit free tier. Cache common AI queries. Current architecture is efficient; costs grow slowly relative to revenue.</td>
+        </tr>
+        <tr class="risk-low">
+          <td><strong>Payment processor refusal</strong> (Stripe content policy)</td>
+          <td class="center"><span class="risk-badge badge-low">Low</span></td>
+          <td>Platform serves public DOJ records — clearly legal. However, have fallback processor (Paddle or Lemon Squeezy) ready.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════
+       SECTION 8 — MILESTONE TIMELINE
+  ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-num">8</div>
+      <h2>Milestone Timeline</h2>
+    </div>
+
+    <div class="timeline">
+
+      <div class="timeline-item">
+        <div class="timeline-date">Week 1–2<br>Mar 1–13</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Pre-Launch Setup</strong>
+          <p>Finalize Stripe integration and subscription tiers. Engage lawyer for ToS and disclaimer review. Set up Beehiiv or ConvertKit email platform. Build landing page with email capture (no public tool access yet). Prepare 5 "finding posts" to schedule for launch week.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Week 2<br>Mar 13</div>
+        <div class="timeline-dot" style="background:#c8a84b; box-shadow: 0 0 0 3px #c8a84b;"></div>
+        <div class="timeline-content">
+          <strong>LAUNCH DAY — Phase 1 Begins</strong>
+          <p>Send cold outreach to first 20 investigative journalists. Offer 30-day free Researcher trial. Post first "finding" on X/Twitter. Activate Researcher ($49) and Media Outlet ($500) tiers only.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Month 1–3<br>Mar–May</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Phase 1 — Media &amp; Professional Ramp</strong>
+          <p>Target: 8–12 media outlet contracts. 40+ Researcher subscribers. Weekly finding posts driving email list to 5,000+. Gather feedback and testimonials. Identify which AI features are most valued by professionals.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Month 3–4<br>Jun 2026</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Phase 2 — Public Launch</strong>
+          <p>Activate Free and Enthusiast ($9) tiers. "As featured in [Outlet X]" social proof on landing page. Launch email campaign to full list. Announce on X/Twitter, Reddit (r/conspiracy, r/epstein, r/truecrime). Target: 500 paid Enthusiast subs in first 30 days.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Month 5–9<br>Jul–Nov</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Peak Window — Scale</strong>
+          <p>Maintain 2–3 finding posts/week. Pursue annual plan sales (20% discount). Reach out to law firms and opposition research firms for Enterprise tier. Target: MRR $40,000–$60,000 by Month 9.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Month 10–12<br>Dec 2026–Feb 2027</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Diversification — Extend Shelf Life</strong>
+          <p>Expand scope: add other public interest document corpora (e.g., JFK files, additional DOJ releases). Add "Report Builder" feature for one-time report purchases. Evaluate documentary / book licensing opportunities.</p>
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-date">Month 13–24<br>2027</div>
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <strong>Sustained Operations</strong>
+          <p>Reduce marketing spend; rely on organic and retained subscribers. Consider raising Researcher/Enthusiast prices by 20–30% for new signups (grandfather existing). Explore acquisition or licensing of platform to a larger media organization.</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Summary KPIs -->
+    <h3 style="margin-top:30px;">Summary Financial Targets</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Milestone</th>
+          <th class="right">Target Date</th>
+          <th class="right">Target MRR</th>
+          <th class="right">Cum. Revenue</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Phase 1 Launch</td>
+          <td class="right">Mar 13, 2026</td>
+          <td class="right">$4,690</td>
+          <td class="right">$4,690</td>
+        </tr>
+        <tr>
+          <td>Break-even (costs covered)</td>
+          <td class="right">Mar 2026 (Day 1)</td>
+          <td class="right">$4,690</td>
+          <td class="right">Immediate</td>
+        </tr>
+        <tr>
+          <td>Phase 2 Public Launch</td>
+          <td class="right">~Jun 2026</td>
+          <td class="right">$15,995</td>
+          <td class="right">$43,000</td>
+        </tr>
+        <tr>
+          <td>$100K cumulative</td>
+          <td class="right">~Aug 2026</td>
+          <td class="right">$32,000</td>
+          <td class="right">$100,000</td>
+        </tr>
+        <tr>
+          <td>Peak MRR</td>
+          <td class="right">~Oct–Nov 2026</td>
+          <td class="right">$50,000–$63,000</td>
+          <td class="right">—</td>
+        </tr>
+        <tr>
+          <td>End of Year 1</td>
+          <td class="right">Feb 2027</td>
+          <td class="right">$57,000</td>
+          <td class="right green">~$435,000</td>
+        </tr>
+        <tr>
+          <td>End of Month 24</td>
+          <td class="right">Feb 2028</td>
+          <td class="right">~$30,000</td>
+          <td class="right green">~$900,000</td>
+        </tr>
+      </tbody>
+    </table>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <span>Epstein Files Research Platform — Confidential Business Plan</span>
+    <span>Prepared February 27, 2026 &nbsp;|&nbsp; For internal use only</span>
+  </div>
+
+</div><!-- .page -->
+</body>
+</html>

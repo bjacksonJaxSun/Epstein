@@ -63,8 +63,12 @@ app.UseSwaggerUI(c =>
 
 app.UseCors("Frontend");
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.MapControllers();
 app.MapHub<ExtractionHub>("/hubs/extraction");
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+app.MapFallbackToFile("index.html");
 
 app.Run();
