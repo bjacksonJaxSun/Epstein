@@ -33,5 +33,6 @@ public class LocationListDto
     public int EventCount { get; set; }
     public int MediaCount { get; set; }
     public int EvidenceCount { get; set; }
+    public int PlacementCount { get; set; }
     public int TotalActivity { get; set; }
 }

@@ -22,7 +22,7 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
             .FirstOrDefaultAsync(l => l.LocationId == id, cancellationToken);
     }
 
-    public async Task<PagedResult<(Location Location, string? OwnerName, int EventCount, int MediaCount, int EvidenceCount, int TotalActivity)>>
+    public async Task<PagedResult<(Location Location, string? OwnerName, int EventCount, int MediaCount, int EvidenceCount, int PlacementCount, int TotalActivity)>>
         GetPagedWithCountsAsync(
             int page,
             int pageSize,
@@ -68,6 +68,7 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
             ["eventCount"] = "EventCount",
             ["mediaCount"] = "MediaCount",
             ["evidenceCount"] = "EvidenceCount",
+            ["placementCount"] = "PlacementCount",
             ["totalActivity"] = "TotalActivity"
         };
 
@@ -108,13 +109,15 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
                 COALESCE(ec.cnt, 0) AS EventCount,
                 COALESCE(mc.cnt, 0) AS MediaCount,
                 COALESCE(evc.cnt, 0) AS EvidenceCount,
-                COALESCE(ec.cnt, 0) + COALESCE(mc.cnt, 0) + COALESCE(evc.cnt, 0) AS TotalActivity
+                COALESCE(plc.cnt, 0) AS PlacementCount,
+                COALESCE(ec.cnt, 0) + COALESCE(mc.cnt, 0) + COALESCE(evc.cnt, 0) + COALESCE(plc.cnt, 0) AS TotalActivity
             FROM locations l
             LEFT JOIN people p ON l.owner_person_id = p.person_id
             LEFT JOIN organizations o ON l.owner_organization_id = o.organization_id
             LEFT JOIN (SELECT location_id, COUNT(*) as cnt FROM events GROUP BY location_id) ec ON ec.location_id = l.location_id
             LEFT JOIN (SELECT location_id, COUNT(*) as cnt FROM media_files GROUP BY location_id) mc ON mc.location_id = l.location_id
             LEFT JOIN (SELECT seized_from_location_id, COUNT(*) as cnt FROM evidence_items GROUP BY seized_from_location_id) evc ON evc.seized_from_location_id = l.location_id
+            LEFT JOIN (SELECT location_id, COUNT(*) as cnt FROM person_location_placements GROUP BY location_id) plc ON plc.location_id = l.location_id
             WHERE {whereClause}
             ORDER BY {orderColumn} {orderDirection}
             LIMIT @PageSize OFFSET @Offset";
@@ -146,10 +149,11 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
             EventCount: r.EventCount,
             MediaCount: r.MediaCount,
             EvidenceCount: r.EvidenceCount,
+            PlacementCount: r.PlacementCount,
             TotalActivity: r.TotalActivity
         )).ToList();
 
-        return new PagedResult<(Location Location, string? OwnerName, int EventCount, int MediaCount, int EvidenceCount, int TotalActivity)>
+        return new PagedResult<(Location Location, string? OwnerName, int EventCount, int MediaCount, int EvidenceCount, int PlacementCount, int TotalActivity)>
         {
             Items = items,
             TotalCount = totalCount,
@@ -188,6 +192,9 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
                 UNION
                 -- Documents linked through events at this location
                 SELECT e.source_document_id FROM events e WHERE e.location_id = @LocationId AND e.source_document_id IS NOT NULL
+                UNION
+                -- Documents linked through person-location placements
+                SELECT UNNEST(plp.source_document_ids) FROM person_location_placements plp WHERE plp.location_id = @LocationId AND plp.source_document_ids IS NOT NULL
             )
             ORDER BY d.document_date DESC, d.document_id DESC
             LIMIT 50";
@@ -196,6 +203,76 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
             new CommandDefinition(sql, new { LocationId = locationId }, cancellationToken: cancellationToken));
 
         return results.ToList();
+    }
+
+    public async Task<IReadOnlyList<LocationPlacementRecord>> GetPlacementsForLocationAsync(
+        long locationId,
+        int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var connection = Context.Database.GetDbConnection();
+
+        // Query placements for a location, ordered by date and confidence
+        var sql = @"
+            SELECT
+                plp.placement_id AS PlacementId,
+                plp.person_id AS PersonId,
+                plp.person_name AS PersonName,
+                plp.placement_date AS PlacementDate,
+                plp.date_end AS DateEnd,
+                plp.date_precision AS DatePrecision,
+                plp.activity_type AS ActivityType,
+                plp.description AS Description,
+                plp.source_document_ids AS SourceDocumentIds,
+                plp.source_efta_numbers AS SourceEftaNumbers,
+                plp.evidence_excerpts AS EvidenceExcerpts,
+                plp.confidence AS Confidence,
+                plp.extraction_method AS ExtractionMethod
+            FROM person_location_placements plp
+            WHERE plp.location_id = @LocationId
+            ORDER BY plp.placement_date DESC NULLS LAST, plp.confidence DESC NULLS LAST
+            LIMIT @Limit";
+
+        var rawResults = await connection.QueryAsync<PlacementRawRecord>(
+            new CommandDefinition(sql, new { LocationId = locationId, Limit = limit }, cancellationToken: cancellationToken));
+
+        // Map to LocationPlacementRecord, handling nullable arrays
+        var results = rawResults.Select(r => new LocationPlacementRecord
+        {
+            PlacementId = r.PlacementId,
+            PersonId = r.PersonId,
+            PersonName = r.PersonName ?? string.Empty,
+            PlacementDate = r.PlacementDate,
+            DateEnd = r.DateEnd,
+            DatePrecision = r.DatePrecision,
+            ActivityType = r.ActivityType,
+            Description = r.Description,
+            SourceDocumentIds = r.SourceDocumentIds?.Select(id => (long)id).ToArray(),
+            SourceEftaNumbers = r.SourceEftaNumbers,
+            EvidenceExcerpts = r.EvidenceExcerpts,
+            Confidence = r.Confidence,
+            ExtractionMethod = r.ExtractionMethod
+        }).ToList();
+
+        return results;
+    }
+
+    // Private class for raw Dapper mapping (handles PostgreSQL arrays)
+    private class PlacementRawRecord
+    {
+        public long PlacementId { get; set; }
+        public long? PersonId { get; set; }
+        public string? PersonName { get; set; }
+        public DateTime? PlacementDate { get; set; }
+        public DateTime? DateEnd { get; set; }
+        public string? DatePrecision { get; set; }
+        public string? ActivityType { get; set; }
+        public string? Description { get; set; }
+        public int[]? SourceDocumentIds { get; set; }
+        public string[]? SourceEftaNumbers { get; set; }
+        public string[]? EvidenceExcerpts { get; set; }
+        public decimal? Confidence { get; set; }
+        public string? ExtractionMethod { get; set; }
     }
 
     private class LocationWithCounts
@@ -217,6 +294,7 @@ public class LocationRepository : BaseRepository<Location>, ILocationRepository
         public int EventCount { get; set; }
         public int MediaCount { get; set; }
         public int EvidenceCount { get; set; }
+        public int PlacementCount { get; set; }
         public int TotalActivity { get; set; }
     }
 }

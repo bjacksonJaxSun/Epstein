@@ -16,6 +16,7 @@ export interface Location {
   eventCount?: number;
   mediaCount?: number;
   evidenceCount?: number;
+  placementCount?: number;
   totalActivity?: number;
 }
 
@@ -28,6 +29,33 @@ export interface LocationDocument {
   author?: string;
   subject?: string;
   pageCount?: number;
+}
+
+export interface LocationPlacement {
+  placementId: number;
+  personId?: number;
+  personName: string;
+  placementDate?: string;
+  dateEnd?: string;
+  datePrecision?: string;
+  activityType?: string;
+  description?: string;
+  sourceDocumentIds: number[];
+  sourceEftaNumbers: string[];
+  evidenceExcerpts: string[];
+  confidence?: number;
+  extractionMethod?: string;
+}
+
+export interface LocationPlacementSummary {
+  locationId: number;
+  locationName: string;
+  totalPlacements: number;
+  uniquePeopleCount: number;
+  documentCount: number;
+  earliestDate?: string;
+  latestDate?: string;
+  placements: LocationPlacement[];
 }
 
 export const locationsApi = {
@@ -47,4 +75,6 @@ export const locationsApi = {
   getCountries: () => apiGet<string[]>('/locations/countries'),
   getTypes: () => apiGet<string[]>('/locations/types'),
   getDocuments: (id: number) => apiGet<LocationDocument[]>(`/locations/${id}/documents`),
+  getPlacements: (id: number, limit?: number) =>
+    apiGet<LocationPlacementSummary>(`/locations/${id}/placements`, { limit }),
 };

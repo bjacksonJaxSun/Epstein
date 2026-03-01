@@ -16,7 +16,12 @@ import {
   ArrowDown,
   FileText,
   ChevronLeft,
+  ChevronRight,
   ExternalLink,
+  Plane,
+  User,
+  Users,
+  Quote,
 } from 'lucide-react';
 import { LocationMap } from '@/components/map/LocationMap';
 import {
@@ -25,7 +30,9 @@ import {
   useLocationCountries,
   useGeoLocatedCount,
   useLocationDocuments,
+  useLocationPlacements,
 } from '@/hooks/useLocations';
+import type { LocationPlacement } from '@/api/endpoints/locations';
 import { LoadingSpinner, StatCard } from '@/components/shared';
 import { cn } from '@/lib/utils';
 import type { Location } from '@/api/endpoints/locations';
@@ -105,7 +112,7 @@ export function MapPage() {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
         <StatCard
           label="Total Locations"
           value={stats.total}
@@ -140,6 +147,12 @@ export function MapPage() {
           value={stats.totalMedia}
           icon={Image}
           iconColor="text-accent-purple"
+        />
+        <StatCard
+          label="Placements"
+          value={stats.totalPlacements}
+          icon={Plane}
+          iconColor="text-accent-green"
         />
       </div>
 
@@ -398,6 +411,8 @@ function SortButton({
   );
 }
 
+type DetailTab = 'placements' | 'documents';
+
 function LocationDetailPanel({
   location,
   onBack,
@@ -405,7 +420,9 @@ function LocationDetailPanel({
   location: Location;
   onBack: () => void;
 }) {
-  const { data: documents, isLoading } = useLocationDocuments(location.locationId);
+  const [activeTab, setActiveTab] = useState<DetailTab>('placements');
+  const { data: documents, isLoading: docsLoading } = useLocationDocuments(location.locationId);
+  const { data: placementData, isLoading: placementsLoading } = useLocationPlacements(location.locationId);
 
   const addressParts = [
     location.city,
@@ -445,89 +462,260 @@ function LocationDetailPanel({
         )}
       </div>
 
-      {/* Stats */}
-      <div className="px-4 py-3 border-b border-border-subtle flex-shrink-0">
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-lg font-semibold text-accent-blue">
-              {location.eventCount ?? 0}
-            </p>
-            <p className="text-[10px] text-text-tertiary">Events</p>
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-accent-purple">
-              {location.mediaCount ?? 0}
-            </p>
-            <p className="text-[10px] text-text-tertiary">Media</p>
-          </div>
-          <div>
-            <p className="text-lg font-semibold text-accent-amber">
-              {location.evidenceCount ?? 0}
-            </p>
-            <p className="text-[10px] text-text-tertiary">Evidence</p>
+      {/* Summary Stats */}
+      {placementData && (
+        <div className="px-4 py-2 border-b border-border-subtle bg-surface-sunken flex-shrink-0">
+          <div className="flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-1">
+              <Users className="h-3.5 w-3.5 text-entity-person" />
+              <span className="text-text-secondary">{placementData.uniquePeopleCount} people</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <FileText className="h-3.5 w-3.5 text-accent-blue" />
+              <span className="text-text-secondary">{placementData.documentCount} docs</span>
+            </div>
+            {placementData.earliestDate && placementData.latestDate && (
+              <div className="flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5 text-accent-purple" />
+                <span className="text-text-secondary">
+                  {new Date(placementData.earliestDate).getFullYear()} - {new Date(placementData.latestDate).getFullYear()}
+                </span>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex border-b border-border-subtle flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setActiveTab('placements')}
+          className={cn(
+            'flex-1 px-4 py-2 text-xs font-medium transition-colors',
+            activeTab === 'placements'
+              ? 'text-accent-blue border-b-2 border-accent-blue bg-surface-overlay'
+              : 'text-text-secondary hover:text-text-primary'
+          )}
+        >
+          <Users className="h-3.5 w-3.5 inline mr-1.5" />
+          People & Activity ({placementData?.totalPlacements ?? location.placementCount ?? 0})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('documents')}
+          className={cn(
+            'flex-1 px-4 py-2 text-xs font-medium transition-colors',
+            activeTab === 'documents'
+              ? 'text-accent-blue border-b-2 border-accent-blue bg-surface-overlay'
+              : 'text-text-secondary hover:text-text-primary'
+          )}
+        >
+          <FileText className="h-3.5 w-3.5 inline mr-1.5" />
+          Documents ({documents?.length ?? 0})
+        </button>
       </div>
 
-      {/* Documents */}
+      {/* Tab Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="px-4 py-2 border-b border-border-subtle bg-surface-sunken sticky top-0">
-          <div className="flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5 text-text-tertiary" />
-            <h4 className="text-xs font-medium text-text-secondary">
-              Related Documents
-              {documents && ` (${documents.length})`}
-            </h4>
-          </div>
-        </div>
+        {activeTab === 'placements' && (
+          placementsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner />
+            </div>
+          ) : placementData && placementData.placements.length > 0 ? (
+            <div className="divide-y divide-border-subtle">
+              {placementData.placements.map((placement) => (
+                <PlacementCard key={placement.placementId} placement={placement} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-text-disabled">
+              <Users className="h-8 w-8 mb-2" />
+              <p className="text-xs">No placements found</p>
+            </div>
+          )
+        )}
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <LoadingSpinner />
-          </div>
-        ) : documents && documents.length > 0 ? (
-          <div className="divide-y divide-border-subtle">
-            {documents.map((doc) => (
-              <a
-                key={doc.documentId}
-                href={`/api/documents/${doc.documentId}/file`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block px-4 py-3 hover:bg-surface-overlay transition-colors group"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent-blue">
-                      {doc.documentTitle || doc.eftaNumber || `Document ${doc.documentId}`}
-                    </p>
-                    {doc.documentType && (
-                      <span className="inline-flex mt-1 items-center rounded-sm border border-border-subtle bg-surface-sunken px-1.5 py-0.5 text-[9px] text-text-tertiary">
-                        {doc.documentType}
-                      </span>
-                    )}
-                    {doc.documentDate && (
-                      <p className="mt-1 text-[10px] text-text-tertiary">
-                        {new Date(doc.documentDate).toLocaleDateString()}
+        {activeTab === 'documents' && (
+          docsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner />
+            </div>
+          ) : documents && documents.length > 0 ? (
+            <div className="divide-y divide-border-subtle">
+              {documents.map((doc) => (
+                <a
+                  key={doc.documentId}
+                  href={`/api/documents/${doc.documentId}/file`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block px-4 py-3 hover:bg-surface-overlay transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-text-primary truncate group-hover:text-accent-blue">
+                        {doc.documentTitle || doc.eftaNumber || `Document ${doc.documentId}`}
                       </p>
-                    )}
-                    {doc.subject && (
-                      <p className="mt-1 text-[10px] text-text-tertiary line-clamp-2">
-                        {doc.subject}
-                      </p>
-                    )}
+                      {doc.documentType && (
+                        <span className="inline-flex mt-1 items-center rounded-sm border border-border-subtle bg-surface-sunken px-1.5 py-0.5 text-[9px] text-text-tertiary">
+                          {doc.documentType}
+                        </span>
+                      )}
+                      {doc.documentDate && (
+                        <p className="mt-1 text-[10px] text-text-tertiary">
+                          {new Date(doc.documentDate).toLocaleDateString()}
+                        </p>
+                      )}
+                      {doc.subject && (
+                        <p className="mt-1 text-[10px] text-text-tertiary line-clamp-2">
+                          {doc.subject}
+                        </p>
+                      )}
+                    </div>
+                    <ExternalLink className="h-3.5 w-3.5 text-text-disabled group-hover:text-accent-blue flex-shrink-0" />
                   </div>
-                  <ExternalLink className="h-3.5 w-3.5 text-text-disabled group-hover:text-accent-blue flex-shrink-0" />
-                </div>
-              </a>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-text-disabled">
-            <FileText className="h-8 w-8 mb-2" />
-            <p className="text-xs">No documents found</p>
-          </div>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-text-disabled">
+              <FileText className="h-8 w-8 mb-2" />
+              <p className="text-xs">No documents found</p>
+            </div>
+          )
         )}
       </div>
+    </div>
+  );
+}
+
+function PlacementCard({ placement }: { placement: LocationPlacement }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const formatDate = (dateStr?: string, precision?: string) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    if (precision === 'year' || precision === 'decade') {
+      return date.getFullYear().toString();
+    }
+    if (precision === 'month') {
+      return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+    }
+    return date.toLocaleDateString();
+  };
+
+  const activityColors: Record<string, string> = {
+    visit: 'bg-accent-blue/20 text-accent-blue',
+    flight: 'bg-accent-purple/20 text-accent-purple',
+    meeting: 'bg-accent-green/20 text-accent-green',
+    party: 'bg-accent-amber/20 text-accent-amber',
+    dinner: 'bg-accent-cyan/20 text-accent-cyan',
+    residence: 'bg-entity-location/20 text-entity-location',
+    presence: 'bg-text-tertiary/20 text-text-secondary',
+    flight_departure: 'bg-accent-purple/20 text-accent-purple',
+    flight_arrival: 'bg-accent-purple/20 text-accent-purple',
+  };
+
+  return (
+    <div className="px-4 py-3">
+      {/* Person and Activity */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <User className="h-4 w-4 text-entity-person flex-shrink-0" />
+          <span className="text-xs font-medium text-text-primary truncate">
+            {placement.personName}
+          </span>
+        </div>
+        {placement.activityType && (
+          <span className={cn(
+            'text-[9px] px-1.5 py-0.5 rounded flex-shrink-0',
+            activityColors[placement.activityType] ?? 'bg-surface-overlay text-text-tertiary'
+          )}>
+            {placement.activityType.replace('_', ' ')}
+          </span>
+        )}
+      </div>
+
+      {/* Date */}
+      {placement.placementDate && (
+        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-text-tertiary">
+          <Calendar className="h-3 w-3" />
+          <span>{formatDate(placement.placementDate, placement.datePrecision)}</span>
+          {placement.datePrecision && placement.datePrecision !== 'exact' && (
+            <span className="text-text-disabled">({placement.datePrecision})</span>
+          )}
+        </div>
+      )}
+
+      {/* Description */}
+      {placement.description && (
+        <p className="mt-1 text-[10px] text-text-secondary line-clamp-2">
+          {placement.description}
+        </p>
+      )}
+
+      {/* Evidence Excerpts */}
+      {placement.evidenceExcerpts.length > 0 && (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-[10px] text-accent-blue hover:text-accent-blue/80"
+          >
+            <Quote className="h-3 w-3" />
+            <span>{expanded ? 'Hide' : 'Show'} evidence ({placement.evidenceExcerpts.length})</span>
+            <ChevronRight className={cn('h-3 w-3 transition-transform', expanded && 'rotate-90')} />
+          </button>
+
+          {expanded && (
+            <div className="mt-2 space-y-2">
+              {placement.evidenceExcerpts.map((excerpt, i) => (
+                <blockquote
+                  key={i}
+                  className="text-[10px] text-text-secondary border-l-2 border-accent-blue/50 pl-2 italic bg-surface-sunken rounded-r py-1 pr-2"
+                >
+                  "{excerpt.length > 300 ? excerpt.substring(0, 300) + '...' : excerpt}"
+                </blockquote>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Source Documents */}
+      {placement.sourceEftaNumbers.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {placement.sourceEftaNumbers.slice(0, 3).map((efta, i) => (
+            <span
+              key={i}
+              className="text-[9px] px-1.5 py-0.5 rounded bg-surface-overlay text-text-tertiary"
+            >
+              {efta}
+            </span>
+          ))}
+          {placement.sourceEftaNumbers.length > 3 && (
+            <span className="text-[9px] text-text-disabled">
+              +{placement.sourceEftaNumbers.length - 3} more
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Confidence */}
+      {placement.confidence != null && (
+        <div className="mt-1.5 flex items-center gap-1">
+          <div className="h-1 flex-1 bg-surface-overlay rounded-full overflow-hidden">
+            <div
+              className="h-full bg-accent-green rounded-full"
+              style={{ width: `${Math.round(placement.confidence * 100)}%` }}
+            />
+          </div>
+          <span className="text-[9px] text-text-disabled">
+            {Math.round(placement.confidence * 100)}%
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -548,6 +736,7 @@ function LocationListItem({
   const eventCount = location.eventCount ?? 0;
   const mediaCount = location.mediaCount ?? 0;
   const evidenceCount = location.evidenceCount ?? 0;
+  const placementCount = location.placementCount ?? 0;
   const totalActivity = location.totalActivity ?? 0;
 
   return (
@@ -606,6 +795,12 @@ function LocationListItem({
             <div className="flex items-center gap-1">
               <FileBox className="h-3 w-3 text-accent-amber" />
               <span className="text-[10px] text-text-tertiary">{evidenceCount}</span>
+            </div>
+          )}
+          {placementCount > 0 && (
+            <div className="flex items-center gap-1">
+              <Plane className="h-3 w-3 text-accent-green" />
+              <span className="text-[10px] text-text-tertiary">{placementCount}</span>
             </div>
           )}
         </div>

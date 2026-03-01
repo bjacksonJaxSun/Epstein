@@ -48,6 +48,7 @@ public class LocationsController : ControllerBase
             EventCount = r.EventCount,
             MediaCount = r.MediaCount,
             EvidenceCount = r.EvidenceCount,
+            PlacementCount = r.PlacementCount,
             TotalActivity = r.TotalActivity
         }).ToList();
 
@@ -99,5 +100,65 @@ public class LocationsController : ControllerBase
     {
         var documents = await _repository.GetDocumentsForLocationAsync(id, cancellationToken);
         return Ok(_mapper.Map<IReadOnlyList<DocumentListDto>>(documents));
+    }
+
+    /// <summary>
+    /// Gets all placements (people, dates, evidence) for a specific location.
+    /// </summary>
+    [HttpGet("{id:long}/placements")]
+    public async Task<ActionResult<LocationPlacementSummaryDto>> GetLocationPlacements(
+        long id,
+        [FromQuery] int limit = 100,
+        CancellationToken cancellationToken = default)
+    {
+        // Verify location exists
+        var location = await _repository.GetWithDetailsAsync(id, cancellationToken);
+        if (location == null) return NotFound();
+
+        // Get placements
+        var placements = await _repository.GetPlacementsForLocationAsync(id, limit, cancellationToken);
+
+        // Map to DTOs
+        var placementDtos = placements.Select(p => new LocationPlacementDto
+        {
+            PlacementId = p.PlacementId,
+            PersonId = p.PersonId,
+            PersonName = p.PersonName,
+            PlacementDate = p.PlacementDate,
+            DateEnd = p.DateEnd,
+            DatePrecision = p.DatePrecision,
+            ActivityType = p.ActivityType,
+            Description = p.Description,
+            SourceDocumentIds = p.SourceDocumentIds?.ToList() ?? new List<long>(),
+            SourceEftaNumbers = p.SourceEftaNumbers?.ToList() ?? new List<string>(),
+            EvidenceExcerpts = p.EvidenceExcerpts?.ToList() ?? new List<string>(),
+            Confidence = p.Confidence,
+            ExtractionMethod = p.ExtractionMethod
+        }).ToList();
+
+        // Build summary
+        var summary = new LocationPlacementSummaryDto
+        {
+            LocationId = id,
+            LocationName = location.LocationName,
+            TotalPlacements = placementDtos.Count,
+            UniquePeopleCount = placementDtos
+                .Select(p => p.PersonName.ToLowerInvariant())
+                .Distinct()
+                .Count(),
+            DocumentCount = placementDtos
+                .SelectMany(p => p.SourceDocumentIds)
+                .Distinct()
+                .Count(),
+            EarliestDate = placementDtos
+                .Where(p => p.PlacementDate.HasValue)
+                .MinBy(p => p.PlacementDate)?.PlacementDate,
+            LatestDate = placementDtos
+                .Where(p => p.PlacementDate.HasValue)
+                .MaxBy(p => p.PlacementDate)?.PlacementDate,
+            Placements = placementDtos
+        };
+
+        return Ok(summary);
     }
 }
